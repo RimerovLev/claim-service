@@ -1,0 +1,16 @@
+package com.claims.mvp.dto;
+
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class IssueDto {
+    @NotNull
+    private IssueType type;
+    private Integer delayMinutes;
+    private Integer cancellationNoticeDays;
+    @NotNull
+    private boolean extraordinaryCircumstances;
+}
