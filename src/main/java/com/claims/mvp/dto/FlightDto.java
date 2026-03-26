@@ -22,5 +22,7 @@ public class FlightDto {
     private String airline;
     @NotBlank
     private String bookingRef;
+    @NotNull
+    private Integer distanceKm;
 
 }

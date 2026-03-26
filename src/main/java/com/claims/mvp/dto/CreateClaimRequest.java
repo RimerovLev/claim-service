@@ -5,12 +5,13 @@ import jakarta.validation.Valid;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 public class CreateClaimRequest {
     @NotNull
-    @Valid
-    private UserDto user;
+    private Long userId;
 
     @NotNull
     @Valid
@@ -20,9 +21,11 @@ public class CreateClaimRequest {
     @Valid
     private IssueDto issue;
 
+    @Valid
+    List<DocumentDto> documents;
+
     @NotNull
     @Valid
     private EuContextDto euContext;
-
 
 }

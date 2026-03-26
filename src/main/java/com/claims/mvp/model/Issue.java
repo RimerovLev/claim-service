@@ -1,6 +1,6 @@
 package com.claims.mvp.model;
 
-import com.claims.mvp.dto.IssueType;
+import com.claims.mvp.dto.enums.IssueType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

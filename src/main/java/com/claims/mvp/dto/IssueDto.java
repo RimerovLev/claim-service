@@ -1,5 +1,6 @@
 package com.claims.mvp.dto;
 
+import com.claims.mvp.dto.enums.IssueType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;

@@ -19,4 +19,8 @@ public class EvaluateClaimRequest {
     @NotNull
     @Valid
     private EuContextDto euContext;
+
+    @NotNull
+    @Valid
+    private FlightDto flight;
 }

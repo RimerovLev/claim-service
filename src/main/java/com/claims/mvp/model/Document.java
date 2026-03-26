@@ -1,6 +1,6 @@
 package com.claims.mvp.model;
 
-import com.claims.mvp.dto.DocumentTypes;
+import com.claims.mvp.dto.enums.DocumentTypes;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -19,14 +19,18 @@ import java.time.OffsetDateTime;
 public class Document {
     @Id
     private String id;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "claim_id", nullable = false)
     private Claim claim;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private DocumentTypes type;
+
     @Column(nullable = false)
     private String url;
+
     @CreationTimestamp
     private OffsetDateTime uploadedAt;
 }

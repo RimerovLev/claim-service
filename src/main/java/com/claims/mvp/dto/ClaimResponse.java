@@ -1,12 +1,13 @@
 package com.claims.mvp.dto;
 
+import com.claims.mvp.dto.enums.ClaimStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -14,12 +15,14 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor
 public class ClaimResponse {
     private Long id;
-    private String status;
+    private ClaimStatus status;
     private Boolean eligible;
     private Integer compensationAmount;
-    private String flightNumber;
-    private LocalDate flightDate;
-    private String issueType;
     private OffsetDateTime createdAt;
+    private UserDto user;
+    private FlightDto flight;
+    private IssueDto issue;
+    private EuContextDto euContext;
+    private List<DocumentDto> documents;
 
 }

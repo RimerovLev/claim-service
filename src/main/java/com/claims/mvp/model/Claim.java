@@ -1,5 +1,6 @@
 package com.claims.mvp.model;
 
+import com.claims.mvp.dto.enums.ClaimStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -18,21 +19,30 @@ public class Claim {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
-    private String status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ClaimStatus status;
     private Boolean eligible;
     private Integer compensationAmount;
     private OffsetDateTime createdAt;
+
     @OneToOne(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private Flight flight;
+
     @OneToOne(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private EuContext euContext;
-    @OneToOne(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
+
+    @OneToMany(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Document> documents;
+
     @OneToOne(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private Issue issue;
+
     @OneToMany(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClaimEvents> events;
 

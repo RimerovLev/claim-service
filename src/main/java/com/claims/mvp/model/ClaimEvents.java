@@ -1,6 +1,6 @@
 package com.claims.mvp.model;
 
-import com.claims.mvp.dto.EventTypes;
+import com.claims.mvp.dto.enums.EventTypes;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -26,6 +26,7 @@ public class ClaimEvents {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EventTypes type;
+    @Column(columnDefinition = "TEXT", nullable = false)
     private String payload;
     @CreationTimestamp
     private OffsetDateTime createdAt;

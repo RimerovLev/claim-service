@@ -1,12 +1,14 @@
 package com.claims.mvp.dto;
 
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 public class EuContextDto {
-    private boolean departureFromEu;
-    private boolean euCarrier;
-    private Integer distanceKm;
+    @NotNull
+    private Boolean departureFromEu;
+    @NotNull
+    private Boolean euCarrier;
 }

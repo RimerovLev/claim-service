@@ -3,6 +3,7 @@ package com.claims.mvp.service;
 import com.claims.mvp.dto.ClaimResponse;
 import com.claims.mvp.dto.CreateClaimRequest;
 import com.claims.mvp.dto.EvaluateClaimRequest;
+import com.claims.mvp.dto.UserDto;
 import jakarta.validation.Valid;
 
 public interface ClaimService {
@@ -11,4 +12,5 @@ public interface ClaimService {
     Iterable<ClaimResponse> getAllClaims();
 
     ClaimResponse evaluateClaim(Long id, @Valid EvaluateClaimRequest request);
+
 }

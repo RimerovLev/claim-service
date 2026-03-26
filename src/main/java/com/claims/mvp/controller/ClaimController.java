@@ -3,6 +3,7 @@ package com.claims.mvp.controller;
 import com.claims.mvp.dto.ClaimResponse;
 import com.claims.mvp.dto.CreateClaimRequest;
 import com.claims.mvp.dto.EvaluateClaimRequest;
+import com.claims.mvp.dto.UserDto;
 import com.claims.mvp.service.ClaimService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

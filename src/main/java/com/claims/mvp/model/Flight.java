@@ -18,21 +18,30 @@ public class Flight {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     @OneToOne(optional = false)
     @JoinColumn(name = "claim_id", nullable = false, unique = true)
+
     private Claim claim;
     @Column(nullable = false)
+
     private String flightNumber;
+
     @Column(nullable = false)
     private LocalDate flightDate;
+
     @Column(nullable = false)
     private String routeFrom;
+
     @Column(nullable = false)
     private String routeTo;
+
     @Column(nullable = false)
     private String airline;
+
     @Column(nullable = false)
     private String bookingRef;
+
     @Column(nullable = false)
     private Integer distanceKm;
 

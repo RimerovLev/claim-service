@@ -1,38 +1,62 @@
 package com.claims.mvp.service;
 
 import com.claims.mvp.dao.ClaimRepository;
+import com.claims.mvp.dao.UserRepository;
 import com.claims.mvp.dto.*;
-import com.claims.mvp.model.Claim;
+import com.claims.mvp.dto.enums.ClaimStatus;
+import com.claims.mvp.model.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
-
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
 @Service
-public class ClaimServiceAppl implements ClaimService {
+public class ClaimServiceImpl implements ClaimService {
     final ClaimRepository claimRepository;
+    final UserRepository userRepository;
     final ModelMapper modelMapper;
-
 
     @Override
     public ClaimResponse createClaim(CreateClaimRequest request) {
         Claim claim = new Claim();
-        claim.setStatus("NEW");
-        claim.setEligible(false);
-        claim.setCompensationAmount(0);
+        User user = userRepository.findById(request.getUserId()).orElseThrow(() -> new EntityNotFoundException("User not found with id: " + request.getUserId()));
+        claim.setUser(user);
 
-        claim.setFlightNumber(request.getFlight().getFlightNumber());
-        claim.setFlightDate(request.getFlight().getFlightDate());
-        claim.setIssueType(request.getIssue().getType().name());
+        claim.setStatus(ClaimStatus.NEW);
 
         boolean eligible = isEligible(request.getIssue(), request.getEuContext());
         claim.setEligible(eligible);
 
-        int compensationAmount = eligible ? calculateCompensationAmount(request.getEuContext().getDistanceKm()) : 0;
+        int compensationAmount = eligible ? calculateCompensationAmount(request.getFlight().getDistanceKm()) : 0;
         claim.setCompensationAmount(compensationAmount);
+
+        Flight flight = modelMapper.map(request.getFlight(), Flight.class);
+        flight.setClaim(claim);
+        claim.setFlight(flight);
+
+        EuContext euContext = modelMapper.map(request.getEuContext(), EuContext.class);
+        euContext.setClaim(claim);
+        claim.setEuContext(euContext);
+
+        List<Document> documents = Optional.ofNullable(request.getDocuments())
+                .orElse(List.of())
+                .stream()
+                .map(d -> {
+                    Document doc = modelMapper.map(d, Document.class);
+                    doc.setClaim(claim);
+                    return doc;
+                })
+                .toList();
+        claim.setDocuments(documents);
+
+        Issue issue = modelMapper.map(request.getIssue(), Issue.class);
+        issue.setClaim(claim);
+        claim.setIssue(issue);
 
         claimRepository.save(claim);
         return modelMapper.map(claim, ClaimResponse.class);
@@ -45,7 +69,14 @@ public class ClaimServiceAppl implements ClaimService {
         boolean eligible = isEligible(request.getIssue(), request.getEuContext());
         claim.setEligible(eligible);
 
-        int compensationAmount = eligible ? calculateCompensationAmount(request.getEuContext().getDistanceKm()) : 0;
+        Integer newDistance = request.getFlight().getDistanceKm();
+        Integer oldDistance = claim.getFlight().getDistanceKm();
+
+        if (!Objects.equals(oldDistance, newDistance)) {
+            claim.getFlight().setDistanceKm(newDistance);
+        }
+
+        int compensationAmount = eligible ? calculateCompensationAmount(newDistance) : 0;
         claim.setCompensationAmount(compensationAmount);
         claimRepository.save(claim);
         return modelMapper.map(claim, ClaimResponse.class);
@@ -71,12 +102,12 @@ public class ClaimServiceAppl implements ClaimService {
 
         // 1) Проверяем, подпадает ли рейс под действие EU261
         // Если рейс вылетает из ЕС ИЛИ авиакомпания европейская → рейс в зоне действия регламента
-        boolean inScope = Boolean.TRUE.equals(euContext.isDepartureFromEu())
-                || Boolean.TRUE.equals(euContext.isEuCarrier());
+        boolean inScope = Boolean.TRUE.equals(euContext.getDepartureFromEu())
+                || Boolean.TRUE.equals(euContext.getEuCarrier());
 
         // 2) Проверяем наличие форс‑мажора
         // Если extraordinary = true → компенсация не положена
-        boolean extraordinary = Boolean.TRUE.equals(issue.isExtraordinaryCircumstances());
+        boolean extraordinary = Boolean.TRUE.equals(issue.getExtraordinaryCircumstances());
 
         // 3) Условие для задержки
         // Eligibility по задержке:
