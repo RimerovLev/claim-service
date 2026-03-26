@@ -19,7 +19,7 @@ public class UserServiceImpl implements UserService{
             throw new IllegalArgumentException("User already exists");
         }
         User user = modelMapper.map(request, User.class);
-        userRepository.save(user);
-        return request;
+        User saved = userRepository.save(user);
+        return modelMapper.map(saved, UserDto.class);
     }
 }
