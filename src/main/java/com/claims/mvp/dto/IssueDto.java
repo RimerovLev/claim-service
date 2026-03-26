@@ -13,5 +13,5 @@ public class IssueDto {
     private Integer cancellationNoticeDays;
     @NotNull
     @Getter
-    private boolean extraordinaryCircumstances;
+    private Boolean extraordinaryCircumstances;
 }
