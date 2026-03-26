@@ -1,6 +1,5 @@
-package com.claims.mvp.model;
+package com.claims.mvp.dto;
 
-import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -9,15 +8,11 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
-@Entity
-@Table(name = "claims")
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Claim {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+public class ClaimResponse {
     private Long id;
     private String status;
     private Boolean eligible;
@@ -27,8 +22,4 @@ public class Claim {
     private String issueType;
     private OffsetDateTime createdAt;
 
-    @PrePersist
-    public void prePersist() {
-        createdAt = OffsetDateTime.now();
-    }
 }
