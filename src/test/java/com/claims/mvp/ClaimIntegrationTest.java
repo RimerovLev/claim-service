@@ -1,7 +1,8 @@
 package com.claims.mvp;
 
-import com.claims.mvp.dto.*;
-import com.claims.mvp.dto.enums.IssueType;
+import com.claims.mvp.claim.dto.*;
+import com.claims.mvp.claim.enums.IssueType;
+import com.claims.mvp.user.dto.UserDto;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
