@@ -54,14 +54,14 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(fetched).isNotNull();
         assertThat(fetched.getId()).isEqualTo(created.getId());
 
-        EvaluateClaimRequest evaluateRequest = new EvaluateClaimRequest();
+        UpdateClaimDetails evaluateRequest = new UpdateClaimDetails();
         evaluateRequest.setIssue(buildCancellationIssue(10));
         evaluateRequest.setEuContext(buildEuContext(true, true));
         evaluateRequest.setFlight(buildFlight(3500));
 
         ResponseEntity<ClaimResponse> evaluateResponse =
-                client.post()
-                        .uri("/api/claims/" + created.getId() + "/evaluate")
+                client.patch()
+                        .uri("/api/claims/" + created.getId() + "/update")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(evaluateRequest)
                         .retrieve()

@@ -11,16 +11,13 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class EvaluateClaimRequest {
-    @NotNull
+public class UpdateClaimDetails {
     @Valid
     private IssueDto issue;
 
-    @NotNull
     @Valid
     private EuContextDto euContext;
 
-    @NotNull
     @Valid
     private FlightDto flight;
 }

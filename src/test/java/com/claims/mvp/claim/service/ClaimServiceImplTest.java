@@ -7,6 +7,9 @@ import com.claims.mvp.claim.dto.EuContextDto;
 import com.claims.mvp.claim.dto.FlightDto;
 import com.claims.mvp.claim.dto.IssueDto;
 import com.claims.mvp.claim.enums.IssueType;
+import com.claims.mvp.eligibility.service.EligibilityService;
+import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
+import com.claims.mvp.events.dao.EventsRepository;
 import com.claims.mvp.claim.model.Claim;
 import com.claims.mvp.claim.model.EuContext;
 import com.claims.mvp.claim.model.Flight;
@@ -82,7 +85,10 @@ class ClaimServiceImplTest {
         final ClaimRepository claimRepository = mock(ClaimRepository.class);
         final UserRepository userRepository = mock(UserRepository.class);
         final ModelMapper modelMapper = mock(ModelMapper.class);
-        final ClaimServiceImpl service = new ClaimServiceImpl(claimRepository, userRepository, modelMapper);
+        final EligibilityService eligibilityService = new EligibilityServiceImpl();
+        final EventsRepository eventsRepository = mock(EventsRepository.class);
+        final ClaimServiceImpl service = new ClaimServiceImpl(
+                claimRepository, userRepository, modelMapper, eligibilityService, eventsRepository);
 
         TestFixture() {
             User user = new User();

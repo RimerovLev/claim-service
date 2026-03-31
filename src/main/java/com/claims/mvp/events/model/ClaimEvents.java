@@ -1,6 +1,7 @@
-package com.claims.mvp.claim.model;
+package com.claims.mvp.events.model;
 
 import com.claims.mvp.claim.enums.EventTypes;
+import com.claims.mvp.claim.model.Claim;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

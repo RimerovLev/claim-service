@@ -1,6 +1,11 @@
 package com.claims.mvp.claim.service;
 
 import com.claims.mvp.claim.dao.ClaimRepository;
+import com.claims.mvp.claim.enums.EventTypes;
+import com.claims.mvp.eligibility.dto.EligibilityResult;
+import com.claims.mvp.eligibility.service.EligibilityService;
+import com.claims.mvp.events.dao.EventsRepository;
+import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.dao.UserRepository;
 import com.claims.mvp.claim.dto.*;
 import com.claims.mvp.claim.enums.ClaimStatus;
@@ -10,9 +15,9 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -21,20 +26,55 @@ public class ClaimServiceImpl implements ClaimService {
     final ClaimRepository claimRepository;
     final UserRepository userRepository;
     final ModelMapper modelMapper;
+    final EligibilityService eligibilityService;
+    final EventsRepository eventsRepository;
+
+    private static final Map<ClaimStatus, Set<ClaimStatus>> ALLOWED_TRANSITIONS = Map.of(
+            ClaimStatus.NEW, Set.of(ClaimStatus.DOCS_REQUESTED, ClaimStatus.READY_TO_SUBMIT),
+            ClaimStatus.DOCS_REQUESTED, Set.of(ClaimStatus.READY_TO_SUBMIT),
+            ClaimStatus.READY_TO_SUBMIT, Set.of(ClaimStatus.SUBMITTED),
+            ClaimStatus.SUBMITTED, Set.of(ClaimStatus.FOLLOW_UP_SENT, ClaimStatus.APPROVED, ClaimStatus.REJECTED),
+            ClaimStatus.FOLLOW_UP_SENT, Set.of(ClaimStatus.APPROVED, ClaimStatus.REJECTED),
+            ClaimStatus.APPROVED, Set.of(ClaimStatus.PAID),
+            ClaimStatus.REJECTED, Set.of(ClaimStatus.CLOSED),
+            ClaimStatus.PAID, Set.of(ClaimStatus.CLOSED)
+    );
+
+    private boolean isTransitionAllowed(ClaimStatus from, ClaimStatus to) {
+        return ALLOWED_TRANSITIONS.getOrDefault(from, Set.of()).contains(to);
+    }
+    @Transactional
+    public ClaimResponse updateClaimStatus(Long id, StatusChangeRequest request) {
+        Claim claim = claimRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        if(!isTransitionAllowed(claim.getStatus(), request.getStatus())) {
+            throw new IllegalArgumentException("Transition from " + claim.getStatus() + " to " + request.getStatus() + " is not allowed");
+        }
+        claim.setStatus(request.getStatus());
+        claimRepository.save(claim);
+
+        ClaimEvents claimEvents = new ClaimEvents();
+        claimEvents.setClaim(claim);
+        claimEvents.setType(EventTypes.STATUS_CHANGED);
+        String payload = (request.getNote() == null || request.getNote().isBlank() ? "{}" : request.getNote());
+        claimEvents.setPayload(payload);
+        eventsRepository.save(claimEvents);
+        return modelMapper.map(claim, ClaimResponse.class);
+    }
 
     @Override
+    @Transactional
     public ClaimResponse createClaim(CreateClaimRequest request) {
         Claim claim = new Claim();
-        User user = userRepository.findById(request.getUserId()).orElseThrow(() -> new EntityNotFoundException("User not found with id: " + request.getUserId()));
+        User user = userRepository.findById(request.getUserId()).orElseThrow(
+                () -> new EntityNotFoundException("User not found with id: " + request.getUserId()));
         claim.setUser(user);
-
         claim.setStatus(ClaimStatus.NEW);
 
-        boolean eligible = isEligible(request.getIssue(), request.getEuContext());
-        claim.setEligible(eligible);
-
-        int compensationAmount = eligible ? calculateCompensationAmount(request.getFlight().getDistanceKm()) : 0;
-        claim.setCompensationAmount(compensationAmount);
+        EligibilityResult result = eligibilityService.evaluate(request.getIssue(),
+                request.getFlight(), request.getEuContext());
+        claim.setEligible(result.getEligible());
+        claim.setCompensationAmount(result.getCompensationAmount());
 
         Flight flight = modelMapper.map(request.getFlight(), Flight.class);
         flight.setClaim(claim);
@@ -64,24 +104,51 @@ public class ClaimServiceImpl implements ClaimService {
     }
 
     @Override
-    public ClaimResponse evaluateClaim(Long id, EvaluateClaimRequest request) {
+    @Transactional
+    public ClaimResponse updateClaimDetails(Long id, UpdateClaimDetails request) {
         Claim claim = claimRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
-        boolean eligible = isEligible(request.getIssue(), request.getEuContext());
-        claim.setEligible(eligible);
 
-        Integer newDistance = request.getFlight().getDistanceKm();
-        Integer oldDistance = claim.getFlight().getDistanceKm();
-
-        if (!Objects.equals(oldDistance, newDistance)) {
-            claim.getFlight().setDistanceKm(newDistance);
+        if(request.getFlight() != null) {
+            if (claim.getFlight() == null){
+                Flight flight = new Flight();
+                flight.setClaim(claim);
+                claim.setFlight(flight);
+            }
+            modelMapper.map(request.getFlight(), claim.getFlight());
         }
+        if(request.getIssue() != null) {
+            if (claim.getIssue() == null){
+                Issue issue = new Issue();
+                issue.setClaim(claim);
+                claim.setIssue(issue);
+            }
+            modelMapper.map(request.getIssue(), claim.getIssue());
+        }
+        if(request.getEuContext() != null) {
+            if (claim.getEuContext() == null){
+                EuContext euContext = new EuContext();
+                euContext.setClaim(claim);
+                claim.setEuContext(euContext);
+            }
+            modelMapper.map(request.getEuContext(), claim.getEuContext());
+        }
+        if (claim.getFlight() == null || claim.getIssue() == null || claim.getEuContext() == null){
+            throw new IllegalArgumentException("Claim details incomplete");
+        }
+        EligibilityResult result = eligibilityService.evaluate(
+                modelMapper.map(claim.getIssue(), IssueDto.class),
+                modelMapper.map(claim.getFlight(), FlightDto.class),
+                modelMapper.map(claim.getEuContext(), EuContextDto.class)
+        );
 
-        int compensationAmount = eligible ? calculateCompensationAmount(newDistance) : 0;
-        claim.setCompensationAmount(compensationAmount);
+        claim.setEligible(result.getEligible());
+        claim.setCompensationAmount(result.getCompensationAmount());
+
         claimRepository.save(claim);
         return modelMapper.map(claim, ClaimResponse.class);
     }
+
 
     @Override
     public ClaimResponse getClaimById(Long id) {
@@ -97,50 +164,4 @@ public class ClaimServiceImpl implements ClaimService {
                 .collect(Collectors.toList());
     }
 
-
-
-    private boolean isEligible(IssueDto issue, EuContextDto euContext) {
-
-        // 1) Проверяем, подпадает ли рейс под действие EU261
-        // Если рейс вылетает из ЕС ИЛИ авиакомпания европейская → рейс в зоне действия регламента
-        boolean inScope = Boolean.TRUE.equals(euContext.getDepartureFromEu())
-                || Boolean.TRUE.equals(euContext.getEuCarrier());
-
-        // 2) Проверяем наличие форс‑мажора
-        // Если extraordinary = true → компенсация не положена
-        boolean extraordinary = Boolean.TRUE.equals(issue.getExtraordinaryCircumstances());
-
-        // 3) Условие для задержки
-        // Eligibility по задержке:
-        // - тип проблемы = DELAY
-        // - указано количество минут задержки
-        // - задержка ≥ 180 минут (3 часа)
-        boolean delayEligible = issue.getType().name().equals("DELAY")
-                && issue.getDelayMinutes() != null
-                && issue.getDelayMinutes() >= 180;
-
-        // 4) Условие для отмены рейса
-        // Eligibility по отмене:
-        // - тип проблемы = CANCELLATION
-        // - указано, за сколько дней предупредили
-        // - предупреждение ≤ 14 дней до вылета
-        boolean cancelEligible = issue.getType().name().equals("CANCELLATION")
-                && issue.getCancellationNoticeDays() != null
-                && issue.getCancellationNoticeDays() <= 14;
-
-        // 5) Итог:
-        // eligible только если:
-        // - рейс в зоне EU261
-        // - нет форс‑мажора
-        // - есть либо задержка ≥ 3 часов, либо отмена с уведомлением ≤ 14 дней
-        return inScope && !extraordinary && (delayEligible || cancelEligible);
-    }
-
-
-    private int calculateCompensationAmount(Integer distanceKm) {
-        if(distanceKm == null) return 0;
-        if(distanceKm <= 1500) return 250;
-        if(distanceKm <= 3500) return 400;
-        return 600;
-    }
 }

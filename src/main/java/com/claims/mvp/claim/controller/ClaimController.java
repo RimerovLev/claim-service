@@ -2,8 +2,9 @@ package com.claims.mvp.claim.controller;
 
 import com.claims.mvp.claim.dto.ClaimResponse;
 import com.claims.mvp.claim.dto.CreateClaimRequest;
-import com.claims.mvp.claim.dto.EvaluateClaimRequest;
-import com.claims.mvp.user.dto.UserDto;
+import com.claims.mvp.claim.dto.StatusChangeRequest;
+import com.claims.mvp.claim.dto.UpdateClaimDetails;
+import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.service.ClaimService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,10 +29,15 @@ public class ClaimController {
     public ResponseEntity<Iterable<ClaimResponse>> getAllClaims() {
         return ResponseEntity.ok(claimService.getAllClaims());
     }
-    @PostMapping("/{id}/evaluate")
-    public ResponseEntity<ClaimResponse> evaluateClaim(@PathVariable Long id,
-                                                       @Valid @RequestBody EvaluateClaimRequest request) {
-        return ResponseEntity.ok(claimService.evaluateClaim(id, request));
+
+    @PatchMapping("/{id}/update")
+    public ClaimResponse changeClaimDetails(@PathVariable Long id, @Valid @RequestBody UpdateClaimDetails request) {
+        return  claimService.updateClaimDetails(id, request);
     }
+    @PostMapping("/{id}/status")
+    public ClaimResponse updateClaimStatus(@PathVariable Long id, @Valid @RequestBody StatusChangeRequest request) {
+        return claimService.updateClaimStatus(id, request);
+    }
+
 
 }

@@ -1,6 +1,7 @@
 package com.claims.mvp.claim.model;
 
 import com.claims.mvp.claim.enums.ClaimStatus;
+import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.model.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

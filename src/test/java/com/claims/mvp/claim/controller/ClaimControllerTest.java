@@ -1,6 +1,7 @@
 package com.claims.mvp.claim.controller;
 
 import com.claims.mvp.claim.dto.*;
+import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.service.ClaimService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,7 @@ class ClaimControllerTest {
             }
 
             @Override
-            public ClaimResponse evaluateClaim(Long id, EvaluateClaimRequest request) {
+            public ClaimResponse updateClaimDetails(Long id, UpdateClaimDetails request) {
                 if (id == 999L) {
                     throw new jakarta.persistence.EntityNotFoundException("Claim not found with id: 999");
                 }
@@ -73,6 +74,13 @@ class ClaimControllerTest {
                 response.setCreatedAt(OffsetDateTime.now());
                 return response;
             }
+
+            @Override
+            public ClaimResponse updateClaimStatus(Long id, StatusChangeRequest request) {
+                return null;
+            }
+
+
         };
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
