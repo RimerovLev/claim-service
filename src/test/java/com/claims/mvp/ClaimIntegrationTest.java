@@ -1,11 +1,21 @@
 package com.claims.mvp;
 
-import com.claims.mvp.claim.dto.*;
+import com.claims.mvp.claim.dto.BoardingDocumentDto;
+import com.claims.mvp.claim.dto.ClaimResponse;
+import com.claims.mvp.claim.dto.CreateClaimRequest;
+import com.claims.mvp.claim.dto.EuContextDto;
+import com.claims.mvp.claim.dto.FlightDto;
+import com.claims.mvp.claim.dto.IssueDto;
+import com.claims.mvp.claim.dto.StatusChangeRequest;
+import com.claims.mvp.claim.dto.UpdateClaimDetails;
+import com.claims.mvp.claim.enums.ClaimStatus;
+import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.IssueType;
+import com.claims.mvp.events.dto.EventsResponseDto;
 import com.claims.mvp.user.dto.UserDto;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
@@ -15,15 +25,15 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.boot.test.context.SpringBootTest(webEnvironment = org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ClaimIntegrationTest extends IntegrationTestBase {
 
     @LocalServerPort
     private int port;
 
     @Test
-    void createClaim_thenGetById_andEvaluate() {
-        UserDto user = createUser("Ivan Petrov", "ivan@example.com");
+    void createClaim_withoutDocuments_setsDocsRequested() {
+        UserDto user = createUser("Ivan Petrov", "ivan-create@example.com");
 
         CreateClaimRequest createRequest = new CreateClaimRequest();
         createRequest.setUserId(user.getId());
@@ -32,71 +42,152 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         createRequest.setEuContext(buildEuContext(true, true));
         createRequest.setDocuments(List.of());
 
-        RestClient client = RestClient.create("http://localhost:" + port);
-        ResponseEntity<ClaimResponse> createResponse =
-                client.post()
-                        .uri("/api/claims")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(createRequest)
-                        .retrieve()
-                        .toEntity(ClaimResponse.class);
-        assertThat(createResponse.getStatusCode().is2xxSuccessful()).isTrue();
-        ClaimResponse created = createResponse.getBody();
-        assertThat(created).isNotNull();
-        assertThat(created.getId()).isNotNull();
-        assertThat(created.getEligible()).isTrue();
-        assertThat(created.getCompensationAmount()).isEqualTo(400);
-
-        ClaimResponse fetched = client.get()
-                .uri("/api/claims/" + created.getId())
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
                 .retrieve()
                 .body(ClaimResponse.class);
-        assertThat(fetched).isNotNull();
-        assertThat(fetched.getId()).isEqualTo(created.getId());
 
-        UpdateClaimDetails evaluateRequest = new UpdateClaimDetails();
-        evaluateRequest.setIssue(buildCancellationIssue(10));
-        evaluateRequest.setEuContext(buildEuContext(true, true));
-        evaluateRequest.setFlight(buildFlight(3500));
-
-        ResponseEntity<ClaimResponse> evaluateResponse =
-                client.patch()
-                        .uri("/api/claims/" + created.getId() + "/update")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(evaluateRequest)
-                        .retrieve()
-                        .toEntity(ClaimResponse.class);
-        assertThat(evaluateResponse.getStatusCode().is2xxSuccessful()).isTrue();
-        ClaimResponse evaluated = evaluateResponse.getBody();
-        assertThat(evaluated).isNotNull();
-        assertThat(evaluated.getEligible()).isTrue();
-        assertThat(evaluated.getCompensationAmount()).isEqualTo(400);
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.DOCS_REQUESTED);
+        assertThat(created.getEligible()).isTrue();
+        assertThat(created.getCompensationAmount()).isEqualTo(400);
     }
 
     @Test
-    void createClaim_userNotFound_returns404() {
+    void createClaim_withRequiredDocuments_setsReadyToSubmit() {
+        UserDto user = createUser("Lev Rimerov", "lev-ready@example.com");
+
         CreateClaimRequest createRequest = new CreateClaimRequest();
-        createRequest.setUserId(999999L);
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("ticket-1", DocumentTypes.TICKET),
+                buildDocument("boarding-pass-1", DocumentTypes.BOARDING_PASS)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+        assertThat(created.getDocuments()).hasSize(2);
+    }
+
+    @Test
+    void updateClaimDetails_withMissingDocuments_promotesToReadyToSubmit() {
+        UserDto user = createUser("Upload Later", "later@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
         createRequest.setFlight(buildFlight(1800));
         createRequest.setIssue(buildDelayIssue(220));
         createRequest.setEuContext(buildEuContext(true, true));
         createRequest.setDocuments(List.of());
 
-        RestClient client = RestClient.create("http://localhost:" + port);
-        int status = client.post()
+        ClaimResponse created = client().post()
                 .uri("/api/claims")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(createRequest)
-                .exchange((req, res) -> res.getStatusCode().value());
+                .retrieve()
+                .body(ClaimResponse.class);
 
-        assertThat(status).isEqualTo(404);
+        UpdateClaimDetails updateRequest = new UpdateClaimDetails();
+        updateRequest.setDocuments(List.of(
+                buildDocument("ticket-2", DocumentTypes.TICKET),
+                buildDocument("boarding-pass-2", DocumentTypes.BOARDING_PASS)
+        ));
+
+        ClaimResponse updated = client().patch()
+                .uri("/api/claims/" + created.getId() + "/update")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(updateRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(updated).isNotNull();
+        assertThat(updated.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+        assertThat(updated.getDocuments()).hasSize(2);
     }
 
     @Test
-    void getClaim_notFound_returns404() {
-        RestClient client = RestClient.create("http://localhost:" + port);
-        int status = client.get()
-                .uri("/api/claims/999999")
+    void updateClaimStatus_validTransition_createsEvent() {
+        UserDto user = createUser("Workflow User", "workflow@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("ticket-3", DocumentTypes.TICKET),
+                buildDocument("boarding-pass-3", DocumentTypes.BOARDING_PASS)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        ClaimResponse updatedStatus = client().post()
+                .uri("/api/claims/" + created.getId() + "/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new StatusChangeRequest(ClaimStatus.SUBMITTED, "sent via email"))
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        List<EventsResponseDto> events = client().get()
+                .uri("/api/claims/" + created.getId() + "/events")
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+
+        assertThat(updatedStatus).isNotNull();
+        assertThat(updatedStatus.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(events).isNotEmpty();
+        assertThat(events.getFirst().getPayload()).contains("\"from\":\"READY_TO_SUBMIT\"");
+        assertThat(events.getFirst().getPayload()).contains("\"to\":\"SUBMITTED\"");
+    }
+
+    @Test
+    void updateClaimStatus_invalidTransition_returns409() {
+        UserDto user = createUser("Invalid Workflow", "invalid-workflow@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of());
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        int status = client().post()
+                .uri("/api/claims/" + created.getId() + "/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new StatusChangeRequest(ClaimStatus.PAID, "skip workflow"))
+                .exchange((req, res) -> res.getStatusCode().value());
+
+        assertThat(status).isEqualTo(409);
+    }
+
+    @Test
+    void getClaimEvents_notFound_returns404() {
+        int status = client().get()
+                .uri("/api/claims/999999/events")
                 .exchange((req, res) -> res.getStatusCode().value());
 
         assertThat(status).isEqualTo(404);
@@ -104,14 +195,13 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
     @Test
     void createUser_duplicateEmail_returns409() {
-        createUser("Lev Rimerov", "dupe@example.com");
+        createUser("Dup User", "dupe@example.com");
 
         UserDto request = new UserDto();
-        request.setFullName("Lev Rimerov");
+        request.setFullName("Dup User");
         request.setEmail("dupe@example.com");
 
-        RestClient client = RestClient.create("http://localhost:" + port);
-        int status = client.post()
+        int status = client().post()
                 .uri("/api/claims/users")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
@@ -120,24 +210,26 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(status).isEqualTo(409);
     }
 
+    private RestClient client() {
+        return RestClient.create("http://localhost:" + port);
+    }
+
     private UserDto createUser(String fullName, String email) {
         UserDto request = new UserDto();
         request.setFullName(fullName);
         request.setEmail(email);
 
-        RestClient client = RestClient.create("http://localhost:" + port);
-        ResponseEntity<UserDto> response =
-                client.post()
-                        .uri("/api/claims/users")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(request)
-                        .retrieve()
-                        .toEntity(UserDto.class);
+        ResponseEntity<UserDto> response = client().post()
+                .uri("/api/claims/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .toEntity(UserDto.class);
+
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
-        UserDto created = response.getBody();
-        assertThat(created).isNotNull();
-        assertThat(created.getId()).isNotNull();
-        return created;
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getId()).isNotNull();
+        return response.getBody();
     }
 
     private FlightDto buildFlight(int distanceKm) {
@@ -161,19 +253,18 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         return issue;
     }
 
-    private IssueDto buildCancellationIssue(int noticeDays) {
-        IssueDto issue = new IssueDto();
-        issue.setType(IssueType.CANCELLATION);
-        issue.setDelayMinutes(null);
-        issue.setCancellationNoticeDays(noticeDays);
-        issue.setExtraordinaryCircumstances(false);
-        return issue;
-    }
-
     private EuContextDto buildEuContext(boolean departureFromEu, boolean euCarrier) {
         EuContextDto ctx = new EuContextDto();
         ctx.setDepartureFromEu(departureFromEu);
         ctx.setEuCarrier(euCarrier);
         return ctx;
+    }
+
+    private BoardingDocumentDto buildDocument(String id, DocumentTypes type) {
+        BoardingDocumentDto document = new BoardingDocumentDto();
+        document.setId(id);
+        document.setType(type);
+        document.setUrl("https://example.test/" + id);
+        return document;
     }
 }

@@ -22,7 +22,7 @@ public class CreateClaimRequest {
     private IssueDto issue;
 
     @Valid
-    List<DocumentDto> documents;
+    List<BoardingDocumentDto> documents;
 
     @NotNull
     @Valid

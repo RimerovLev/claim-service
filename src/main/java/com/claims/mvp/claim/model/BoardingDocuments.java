@@ -16,7 +16,7 @@ import java.time.OffsetDateTime;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Document {
+public class BoardingDocuments {
     @Id
     private String id;
 

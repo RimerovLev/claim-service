@@ -40,7 +40,7 @@ public class Claim {
     private EuContext euContext;
 
     @OneToMany(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Document> documents;
+    private List<BoardingDocuments> documents;
 
     @OneToOne(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private Issue issue;

@@ -1,18 +1,21 @@
 package com.claims.mvp.eligibility.service;
 
+import com.claims.mvp.claim.dto.BoardingDocumentDto;
 import com.claims.mvp.claim.dto.EuContextDto;
 import com.claims.mvp.claim.dto.FlightDto;
 import com.claims.mvp.claim.dto.IssueDto;
+import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.IssueType;
 import com.claims.mvp.eligibility.dto.EligibilityResult;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
-@RequiredArgsConstructor
 public class EligibilityServiceImpl implements EligibilityService{
 
-    public EligibilityResult evaluate(IssueDto issue, FlightDto flight, EuContextDto euContext) {
+    @Override
+    public EligibilityResult evaluate(IssueDto issue, FlightDto flight, EuContextDto euContext, List<BoardingDocumentDto> documents) {
 
         // 1) Проверяем, подпадает ли рейс под действие EU261 Если рейс вылетает из ЕС ИЛИ авиакомпания европейская → рейс в зоне действия регламента
         boolean inScope = Boolean.TRUE.equals(euContext.getDepartureFromEu())
@@ -33,16 +36,22 @@ public class EligibilityServiceImpl implements EligibilityService{
                 && issue.getCancellationNoticeDays() != null
                 && issue.getCancellationNoticeDays() <= 14;
 
-            EligibilityResult result = new EligibilityResult();
-            boolean eligible = inScope && !extraordinary && (delayEligible || cancelEligible);
-            result.setEligible(eligible);
-            result.setCompensationAmount(eligible ? calculateCompensationAmount(flight.getDistanceKm()) : 0);
+        EligibilityResult result = new EligibilityResult();
+        boolean isFlightClaim = issue.getType() == IssueType.DELAY || issue.getType() == IssueType.CANCELLATION;
+        result.setRequiredDocuments(
+                isFlightClaim
+                        ? List.of(DocumentTypes.TICKET, DocumentTypes.BOARDING_PASS)
+                        : List.of(DocumentTypes.PIR, DocumentTypes.BAG_TAG, DocumentTypes.PHOTO)
+        );
 
+        boolean eligible = inScope && !extraordinary && (delayEligible || cancelEligible);
+        result.setEligible(eligible);
+        result.setCompensationAmount(eligible ? calculateCompensationAmount(flight.getDistanceKm()) : 0);
 
-            return result;
+        return result;
     }
 
-
+    @Override
     public int calculateCompensationAmount(Integer distanceKm) {
         if(distanceKm == null) return 0;
         if(distanceKm <= 1500) return 250;

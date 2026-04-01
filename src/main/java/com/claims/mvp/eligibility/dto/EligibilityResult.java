@@ -3,6 +3,7 @@ package com.claims.mvp.eligibility.dto;
 import com.claims.mvp.claim.enums.DocumentTypes;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.Singular;
 
 import java.util.List;
 
@@ -14,4 +15,5 @@ public class EligibilityResult {
     private String reasonCode;
     private List<DocumentTypes> requiredDocuments;
     private String notes;
+
 }

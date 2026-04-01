@@ -24,6 +24,6 @@ public class ClaimResponse {
     private FlightDto flight;
     private IssueDto issue;
     private EuContextDto euContext;
-    private List<DocumentDto> documents;
+    private List<BoardingDocumentDto> documents;
 
 }
