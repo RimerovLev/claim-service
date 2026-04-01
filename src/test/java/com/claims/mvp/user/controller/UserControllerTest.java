@@ -49,7 +49,7 @@ class UserControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/claims/users")
+        mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -66,7 +66,7 @@ class UserControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/claims/users")
+        mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
@@ -81,7 +81,7 @@ class UserControllerTest {
                 }
                 """;
 
-        mockMvc.perform(post("/api/claims/users")
+        mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isConflict());

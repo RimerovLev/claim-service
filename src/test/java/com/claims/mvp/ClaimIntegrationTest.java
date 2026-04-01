@@ -202,7 +202,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         request.setEmail("dupe@example.com");
 
         int status = client().post()
-                .uri("/api/claims/users")
+                .uri("/api/users")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .exchange((req, res) -> res.getStatusCode().value());
@@ -220,7 +220,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         request.setEmail(email);
 
         ResponseEntity<UserDto> response = client().post()
-                .uri("/api/claims/users")
+                .uri("/api/users")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()

@@ -12,10 +12,21 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
+/**
+ * EligibilityService.
+ *
+ * Чистая бизнес-логика (без БД): определяет
+ * - eligible (подпадает ли claim под правила компенсации)
+ * - compensationAmount (сколько платить)
+ * - requiredDocuments (какие документы нужно запросить у клиента)
+ *
+ * Этот сервис не меняет статус claim и ничего не сохраняет — только возвращает результат.
+ */
 public class EligibilityServiceImpl implements EligibilityService{
 
     @Override
     public EligibilityResult evaluate(IssueDto issue, FlightDto flight, EuContextDto euContext, List<BoardingDocumentDto> documents) {
+        // Главный метод "оценки" (eligibility + required docs + компенсация).
 
         // 1) Проверяем, подпадает ли рейс под действие EU261 Если рейс вылетает из ЕС ИЛИ авиакомпания европейская → рейс в зоне действия регламента
         boolean inScope = Boolean.TRUE.equals(euContext.getDepartureFromEu())
@@ -37,6 +48,8 @@ public class EligibilityServiceImpl implements EligibilityService{
                 && issue.getCancellationNoticeDays() <= 14;
 
         EligibilityResult result = new EligibilityResult();
+        // Правило required docs: сейчас DELAY/CANCELLATION требуют Ticket+BoardingPass,
+        // остальные типы подготовлены на будущее.
         boolean isFlightClaim = issue.getType() == IssueType.DELAY || issue.getType() == IssueType.CANCELLATION;
         result.setRequiredDocuments(
                 isFlightClaim
@@ -53,6 +66,7 @@ public class EligibilityServiceImpl implements EligibilityService{
 
     @Override
     public int calculateCompensationAmount(Integer distanceKm) {
+        // Упрощённая таблица компенсаций по дистанции.
         if(distanceKm == null) return 0;
         if(distanceKm <= 1500) return 250;
         if(distanceKm <= 3500) return 400;

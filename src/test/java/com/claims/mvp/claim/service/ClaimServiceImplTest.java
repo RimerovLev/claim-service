@@ -20,6 +20,11 @@ import com.claims.mvp.claim.model.Issue;
 import com.claims.mvp.configuration.ServiceConfiguration;
 import com.claims.mvp.eligibility.service.EligibilityService;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
+import com.claims.mvp.claim.service.documents.ClaimDocumentsService;
+import com.claims.mvp.claim.service.documents.ClaimDocumentsServiceImpl;
+import com.claims.mvp.claim.service.lifecycle.ClaimLifecycleServiceImpl;
+import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
+import com.claims.mvp.claim.service.workflow.ClaimWorkflowServiceImpl;
 import com.claims.mvp.events.dao.EventsRepository;
 import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.dao.UserRepository;
@@ -58,13 +63,23 @@ class ClaimServiceImplTest {
     @Mock
     private EventsRepository eventsRepository;
 
-    private ClaimServiceImpl service;
+    private ClaimService service;
 
     @BeforeEach
     void setUp() {
         ModelMapper modelMapper = new ServiceConfiguration().getModelMapper();
         EligibilityService eligibilityService = new EligibilityServiceImpl();
-        service = new ClaimServiceImpl(claimRepository, userRepository, modelMapper, eligibilityService, eventsRepository);
+        ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
+        ClaimDocumentsService documentsService = new ClaimDocumentsServiceImpl();
+        service = new ClaimLifecycleServiceImpl(
+                claimRepository,
+                userRepository,
+                modelMapper,
+                eligibilityService,
+                workflowService,
+                documentsService,
+                eventsRepository
+        );
         lenient().when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(eventsRepository.save(any(ClaimEvents.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }

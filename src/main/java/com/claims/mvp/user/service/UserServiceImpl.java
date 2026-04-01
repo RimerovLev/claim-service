@@ -9,12 +9,21 @@ import org.springframework.stereotype.Service;
 
 @RequiredArgsConstructor
 @Service
+/**
+ * UserService.
+ *
+ * Сервис для операций с пользователями (MVP-уровень):
+ * - создание пользователя
+ *
+ * Здесь же живут базовые бизнес-проверки (например, уникальность email).
+ */
 public class UserServiceImpl implements UserService{
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
 
     @Override
     public UserDto createUser(UserDto request) {
+        // Создание пользователя. Для MVP запрещаем дубликаты по email.
         if(userRepository.existsByEmail(request.getEmail())){
             throw new IllegalArgumentException("User already exists");
         }
