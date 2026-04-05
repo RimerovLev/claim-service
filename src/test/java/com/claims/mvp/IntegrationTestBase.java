@@ -14,6 +14,7 @@ public abstract class IntegrationTestBase {
 
     static {
         POSTGRES.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(POSTGRES::close));
     }
 
     @DynamicPropertySource

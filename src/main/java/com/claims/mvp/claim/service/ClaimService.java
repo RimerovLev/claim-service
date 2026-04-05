@@ -4,10 +4,7 @@ import com.claims.mvp.claim.dto.ClaimResponse;
 import com.claims.mvp.claim.dto.CreateClaimRequest;
 import com.claims.mvp.claim.dto.StatusChangeRequest;
 import com.claims.mvp.claim.dto.UpdateClaimDetails;
-import com.claims.mvp.claim.enums.ClaimStatus;
-import com.claims.mvp.claim.model.Claim;
 import com.claims.mvp.events.dto.EventsResponseDto;
-import com.claims.mvp.events.model.ClaimEvents;
 import jakarta.validation.Valid;
 
 import java.util.List;
