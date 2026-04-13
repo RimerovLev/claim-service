@@ -24,6 +24,8 @@ import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
 import com.claims.mvp.claim.service.documents.ClaimDocumentsService;
 import com.claims.mvp.claim.service.documents.ClaimDocumentsServiceImpl;
 import com.claims.mvp.claim.service.lifecycle.ClaimLifecycleServiceImpl;
+import com.claims.mvp.claim.service.letter.ClaimLetterService;
+import com.claims.mvp.claim.service.letter.ClaimLetterServiceImpl;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowServiceImpl;
 import com.claims.mvp.events.dao.EventsRepository;
@@ -71,6 +73,7 @@ class ClaimServiceImplTest {
         EligibilityService eligibilityService = new EligibilityServiceImpl();
         ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
         ClaimDocumentsService documentsService = new ClaimDocumentsServiceImpl();
+        ClaimLetterService letterService = new ClaimLetterServiceImpl();
 
         ClaimEntityMapper entityMapper = Mappers.getMapper(ClaimEntityMapper.class);
         ClaimMapper claimMapper = Mappers.getMapper(ClaimMapper.class);
@@ -83,7 +86,8 @@ class ClaimServiceImplTest {
                 documentsService,
                 eventsRepository,
                 entityMapper,
-                claimMapper
+                claimMapper,
+                letterService
         );
         lenient().when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(eventsRepository.save(any(ClaimEvents.class))).thenAnswer(invocation -> invocation.getArgument(0));

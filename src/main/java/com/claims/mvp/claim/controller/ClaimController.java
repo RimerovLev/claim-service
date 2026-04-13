@@ -4,6 +4,7 @@ import com.claims.mvp.claim.dto.request.CreateClaimRequest;
 import com.claims.mvp.claim.dto.request.StatusChangeRequest;
 import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
 import com.claims.mvp.claim.dto.response.ClaimResponse;
+import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.claim.service.ClaimService;
 import com.claims.mvp.events.dto.response.EventsResponse;
 import jakarta.validation.Valid;
@@ -49,5 +50,8 @@ public class ClaimController {
         return claimService.getClaimEvents(id);
     }
 
-
+    @GetMapping("/{id}/letter")
+    public LetterResponse getClaimLetter(@PathVariable Long id) {
+        return claimService.getClaimLetter(id);
+    }
 }

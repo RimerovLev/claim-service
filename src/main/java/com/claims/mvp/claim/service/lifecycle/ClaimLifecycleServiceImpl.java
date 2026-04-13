@@ -1,6 +1,7 @@
 package com.claims.mvp.claim.service.lifecycle;
 
 import com.claims.mvp.claim.dao.ClaimRepository;
+import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.claim.mapper.ClaimEntityMapper;
 import com.claims.mvp.claim.mapper.ClaimMapper;
 import com.claims.mvp.claim.dto.request.CreateClaimRequest;
@@ -13,6 +14,7 @@ import com.claims.mvp.claim.enums.EventTypes;
 import com.claims.mvp.claim.model.*;
 import com.claims.mvp.claim.service.ClaimService;
 import com.claims.mvp.claim.service.documents.ClaimDocumentsService;
+import com.claims.mvp.claim.service.letter.ClaimLetterService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
 import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityService;
@@ -54,6 +56,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     private final EventsRepository eventsRepository;
     private final ClaimEntityMapper claimEntityMapper;
     private final ClaimMapper claimMapper;
+    private final ClaimLetterService claimLetterService;
 
     @Override
     @Transactional
@@ -197,6 +200,13 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         return eventsRepository.findByClaimIdOrderByCreatedAtDesc(id).stream()
                 .map(claimMapper::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public LetterResponse getClaimLetter(Long id) {
+        Claim claim = claimRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        return claimLetterService.generateLetter(claim);
     }
 
     private void recalcDerivedFields(Claim claim) {
