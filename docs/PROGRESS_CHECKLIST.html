@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Claims MVP — Progress Checklist</title>
+  <style>
+    :root {
+      --text: #111;
+      --muted: #666;
+      --rule: #ddd;
+      --bg: #fff;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    .page {
+      max-width: 900px;
+      margin: 24px auto;
+      padding: 0 24px 48px;
+    }
+    h1 {
+      font-size: 22px;
+      margin: 0 0 6px;
+      letter-spacing: 0.2px;
+    }
+    .meta {
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    .legend {
+      border: 1px solid var(--rule);
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin: 12px 0 18px;
+    }
+    h2 {
+      font-size: 16px;
+      margin: 18px 0 8px;
+      padding-top: 10px;
+      border-top: 1px solid var(--rule);
+    }
+    ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+    li {
+      margin: 3px 0;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.95em;
+    }
+    .footer {
+      margin-top: 24px;
+      color: var(--muted);
+      border-top: 1px solid var(--rule);
+      padding-top: 10px;
+      font-size: 12px;
+    }
+    @media print {
+      .page { margin: 0; max-width: none; padding: 12mm 12mm 14mm; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Claims MVP — Progress Checklist</h1>
+    <div class="meta">Дата: 2026-04-13 · Проект: <code>claims-mvp</code></div>
+
+    <div class="legend">
+      <div><strong>Легенда</strong></div>
+      <div><code>[x]</code> — сделано</div>
+      <div><code>[~]</code> — частично</div>
+      <div><code>[ ]</code> — не сделано</div>
+    </div>
+
+    <h2>MVP</h2>
+    <ul>
+      <li>[x] Форма создания кейса (<code>POST /api/claims</code>)</li>
+      <li>[~] Выбор типа проблемы (есть: <code>DELAY</code>, <code>CANCELLATION</code>; нет: missed connection / baggage cases)</li>
+      <li>[x] Ввод данных рейса и бронирования (flight + bookingRef)</li>
+      <li>[~] Загрузка подтверждающих документов (есть <code>type + url</code>, нет реального upload/storage)</li>
+      <li>[x] Базовая проверка права на компенсацию (rules: delay/cancellation + EU scope + extraordinary)</li>
+      <li>[ ] Генерация претензии / обращения</li>
+      <li>[ ] Отправка пользователю готового письма или авто-отправка</li>
+      <li>[x] Сохранение кейса в “CRM” (таблицы + <code>GET /api/claims</code>, <code>GET /api/claims/{id}</code>)</li>
+      <li>[ ] Follow-up напоминания</li>
+      <li>[ ] Аналитика по статусам кейсов</li>
+    </ul>
+
+    <h2>1) Intake / Claim Intake Layer</h2>
+    <ul>
+      <li>[x] Создание кейса пользователем</li>
+      <li>[x] Сбор данных рейса/бронирования</li>
+      <li>[~] Загрузка файлов (пока только ссылки на документы)</li>
+      <li>[~] Определение категории кейса (пока только через <code>IssueType</code>)</li>
+    </ul>
+
+    <h2>2) Eligibility / Rules Engine</h2>
+    <ul>
+      <li>[x] Rule-based eligibility (минимальный)</li>
+      <li>[x] Delay compensation (&gt;= 180 минут)</li>
+      <li>[x] Cancellation compensation (notice &lt;= 14 дней)</li>
+      <li>[ ] Denied boarding</li>
+      <li>[ ] Missed connection</li>
+      <li>[ ] Delayed baggage</li>
+      <li>[ ] Lost baggage</li>
+      <li>[ ] Damaged baggage</li>
+      <li>[~] Юрисдикции/ограничения (минимально: EU scope + extraordinary)</li>
+      <li>[x] Required documents (минимально: Ticket + Boarding pass)</li>
+    </ul>
+
+    <h2>3) AI-assistant Layer</h2>
+    <ul>
+      <li>[ ] Объяснение пользователю (почему eligible / не eligible)</li>
+      <li>[ ] Генерация претензии (email/web/PDF)</li>
+      <li>[ ] Генерация follow-up писем</li>
+      <li>[ ] Escalation шаблоны</li>
+    </ul>
+
+    <h2>4) Claim Workflow / Automation</h2>
+    <ul>
+      <li>[x] Статусы + allowed transitions (FSM)</li>
+      <li>[x] Авто-статус <code>DOCS_REQUESTED</code> ↔ <code>READY_TO_SUBMIT</code> по required docs (pre-submit)</li>
+      <li>[x] Логирование статусов через events (<code>claim_events</code>)</li>
+      <li>[ ] Автоматические follow-up по времени (scheduler/queue)</li>
+      <li>[ ] Escalated (статус + правила/таймеры)</li>
+    </ul>
+
+    <h2>5) CRM</h2>
+    <ul>
+      <li>[x] Карточка пользователя (create user)</li>
+      <li>[x] Карточка claim (БД + API)</li>
+      <li>[~] История кейсов по пользователю (нет <code>GET /api/users/{id}/claims</code>)</li>
+      <li>[ ] Сегментация/фильтры/поиск</li>
+    </ul>
+
+    <h2>6) Communications</h2>
+    <ul>
+      <li>[ ] Email-уведомления</li>
+      <li>[ ] Telegram/WhatsApp/push</li>
+      <li>[ ] Полуавтоматическая/автоматическая отправка претензий</li>
+    </ul>
+
+    <h2>7) Content / SEO</h2>
+    <ul>
+      <li>[ ] SEO-страницы</li>
+      <li>[ ] Образовательный контент</li>
+    </ul>
+
+    <h2>8) Integrations</h2>
+    <ul>
+      <li>[ ] Email provider</li>
+      <li>[ ] Storage (S3/MinIO)</li>
+      <li>[ ] Flight status API</li>
+      <li>[ ] OCR / document parsing</li>
+      <li>[ ] E-sign / PDF generation</li>
+    </ul>
+
+    <h2>9) Analytics</h2>
+    <ul>
+      <li>[ ] Метрики по кейсам (создано/успешно/суммы/конверсии)</li>
+      <li>[ ] Dashboard</li>
+    </ul>
+
+    <h2>Tech / Engineering</h2>
+    <ul>
+      <li>[x] DTO naming: <code>dto.request</code> / <code>dto.response</code></li>
+      <li>[x] MapStruct (ModelMapper removed)</li>
+      <li>[x] Controllers return objects (no <code>ResponseEntity</code>)</li>
+      <li>[x] Tests: unit + web layer + integration (Testcontainers Postgres)</li>
+      <li>[ ] Flyway/Liquibase migrations (instead of <code>ddl-auto</code>)</li>
+      <li>[ ] Auth/JWT + bind claims to current user (not via <code>userId</code>)</li>
+    </ul>
+
+    <div class="footer">
+      Подсказка: открой файл в браузере и выбери Print → Save as PDF.
+    </div>
+  </div>
+</body>
+</html>
+
