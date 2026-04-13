@@ -1,12 +1,12 @@
 package com.claims.mvp.eligibility.service;
 
-import com.claims.mvp.claim.dto.BoardingDocumentDto;
-import com.claims.mvp.claim.dto.EuContextDto;
-import com.claims.mvp.claim.dto.FlightDto;
-import com.claims.mvp.claim.dto.IssueDto;
 import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.IssueType;
-import com.claims.mvp.eligibility.dto.EligibilityResult;
+import com.claims.mvp.claim.model.BoardingDocuments;
+import com.claims.mvp.claim.model.EuContext;
+import com.claims.mvp.claim.model.Flight;
+import com.claims.mvp.claim.model.Issue;
+import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,41 +15,47 @@ import java.util.List;
 /**
  * EligibilityService.
  *
- * Чистая бизнес-логика (без БД): определяет
- * - eligible (подпадает ли claim под правила компенсации)
- * - compensationAmount (сколько платить)
- * - requiredDocuments (какие документы нужно запросить у клиента)
+ * Pure business logic (no DB access). Determines:
+ * - eligible (does the claim qualify under the rules)
+ * - compensationAmount (how much to pay)
+ * - requiredDocuments (which documents must be collected from the customer)
  *
- * Этот сервис не меняет статус claim и ничего не сохраняет — только возвращает результат.
+ * This service does not change claim status and does not persist anything — it only returns a result.
  */
 public class EligibilityServiceImpl implements EligibilityService{
 
     @Override
-    public EligibilityResult evaluate(IssueDto issue, FlightDto flight, EuContextDto euContext, List<BoardingDocumentDto> documents) {
-        // Главный метод "оценки" (eligibility + required docs + компенсация).
+    public EligibilityResult evaluate(Issue issue, Flight flight, EuContext euContext, List<BoardingDocuments> documents) {
+        // Main evaluation method (eligibility + required docs + compensation).
 
-        // 1) Проверяем, подпадает ли рейс под действие EU261 Если рейс вылетает из ЕС ИЛИ авиакомпания европейская → рейс в зоне действия регламента
+        // 1) In scope (EU261):
+        // If the flight departs from the EU OR the carrier is an EU carrier -> in scope.
         boolean inScope = Boolean.TRUE.equals(euContext.getDepartureFromEu())
                 || Boolean.TRUE.equals(euContext.getEuCarrier());
 
-        // 2) Проверяем наличие форс‑мажора Если extraordinary = true → компенсация не положена
+        // 2) Extraordinary circumstances:
+        // If extraordinary=true -> no compensation.
         boolean extraordinary = Boolean.TRUE.equals(issue.getExtraordinaryCircumstances());
 
-        // 3) Условие для задержки Eligibility по задержке: - тип проблемы = DELAY
-        // - указано количество минут задержки - задержка ≥ 180 минут (3 часа)
+        // 3) Delay eligibility:
+        // - type=DELAY
+        // - delayMinutes specified
+        // - delay >= 180 minutes (3 hours)
         boolean delayEligible = issue.getType() == IssueType.DELAY
                 && issue.getDelayMinutes() != null
                 && issue.getDelayMinutes() >= 180;
 
-        // 4) Условие для отмены рейса Eligibility по отмене: - тип проблемы = CANCELLATION
-        // - указано, за сколько дней предупредили /- предупреждение ≤ 14 дней до вылета
+        // 4) Cancellation eligibility:
+        // - type=CANCELLATION
+        // - cancellationNoticeDays specified
+        // - notice <= 14 days before departure
         boolean cancelEligible = issue.getType() == IssueType.CANCELLATION
                 && issue.getCancellationNoticeDays() != null
                 && issue.getCancellationNoticeDays() <= 14;
 
         EligibilityResult result = new EligibilityResult();
-        // Правило required docs: сейчас DELAY/CANCELLATION требуют Ticket+BoardingPass,
-        // остальные типы подготовлены на будущее.
+        // Required docs rule: currently DELAY/CANCELLATION require Ticket+BoardingPass.
+        // Other document sets are prepared for future issue types.
         boolean isFlightClaim = issue.getType() == IssueType.DELAY || issue.getType() == IssueType.CANCELLATION;
         result.setRequiredDocuments(
                 isFlightClaim
@@ -66,7 +72,7 @@ public class EligibilityServiceImpl implements EligibilityService{
 
     @Override
     public int calculateCompensationAmount(Integer distanceKm) {
-        // Упрощённая таблица компенсаций по дистанции.
+        // Simplified compensation table by distance.
         if(distanceKm == null) return 0;
         if(distanceKm <= 1500) return 250;
         if(distanceKm <= 3500) return 400;

@@ -1,12 +1,12 @@
 package com.claims.mvp.eligibility;
 
-import com.claims.mvp.claim.dto.BoardingDocumentDto;
-import com.claims.mvp.claim.dto.EuContextDto;
-import com.claims.mvp.claim.dto.FlightDto;
-import com.claims.mvp.claim.dto.IssueDto;
 import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.IssueType;
-import com.claims.mvp.eligibility.dto.EligibilityResult;
+import com.claims.mvp.claim.model.BoardingDocuments;
+import com.claims.mvp.claim.model.EuContext;
+import com.claims.mvp.claim.model.Flight;
+import com.claims.mvp.claim.model.Issue;
+import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
 import org.junit.jupiter.api.Test;
 
@@ -95,8 +95,8 @@ class EligibilityServiceImplTest {
         assertThat(service.calculateCompensationAmount(4000)).isEqualTo(600);
     }
 
-    private IssueDto issue(IssueType type, Integer delayMinutes, Integer cancellationNoticeDays, boolean extraordinary) {
-        IssueDto issue = new IssueDto();
+    private Issue issue(IssueType type, Integer delayMinutes, Integer cancellationNoticeDays, boolean extraordinary) {
+        Issue issue = new Issue();
         issue.setType(type);
         issue.setDelayMinutes(delayMinutes);
         issue.setCancellationNoticeDays(cancellationNoticeDays);
@@ -104,8 +104,8 @@ class EligibilityServiceImplTest {
         return issue;
     }
 
-    private FlightDto flight(int distanceKm) {
-        FlightDto flight = new FlightDto();
+    private Flight flight(int distanceKm) {
+        Flight flight = new Flight();
         flight.setFlightNumber("LH123");
         flight.setFlightDate(LocalDate.of(2026, 3, 1));
         flight.setRouteFrom("FRA");
@@ -116,15 +116,15 @@ class EligibilityServiceImplTest {
         return flight;
     }
 
-    private EuContextDto euContext(boolean departureFromEu, boolean euCarrier) {
-        EuContextDto ctx = new EuContextDto();
+    private EuContext euContext(boolean departureFromEu, boolean euCarrier) {
+        EuContext ctx = new EuContext();
         ctx.setDepartureFromEu(departureFromEu);
         ctx.setEuCarrier(euCarrier);
         return ctx;
     }
 
-    private BoardingDocumentDto document(DocumentTypes type) {
-        BoardingDocumentDto document = new BoardingDocumentDto();
+    private BoardingDocuments document(DocumentTypes type) {
+        BoardingDocuments document = new BoardingDocuments();
         document.setId(type.name().toLowerCase());
         document.setType(type);
         document.setUrl("https://example.test/" + type.name().toLowerCase());

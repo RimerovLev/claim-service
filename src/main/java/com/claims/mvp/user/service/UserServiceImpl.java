@@ -1,10 +1,11 @@
 package com.claims.mvp.user.service;
 
 import com.claims.mvp.user.dao.UserRepository;
-import com.claims.mvp.user.dto.UserDto;
+import com.claims.mvp.user.dto.request.CreateUserRequest;
+import com.claims.mvp.user.dto.response.UserResponse;
+import com.claims.mvp.user.mapper.UserMapper;
 import com.claims.mvp.user.model.User;
 import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
 @RequiredArgsConstructor
@@ -12,23 +13,23 @@ import org.springframework.stereotype.Service;
 /**
  * UserService.
  *
- * Сервис для операций с пользователями (MVP-уровень):
- * - создание пользователя
+ * Service for user operations (MVP scope):
+ * - create user
  *
- * Здесь же живут базовые бизнес-проверки (например, уникальность email).
+ * Contains basic business checks (e.g., email uniqueness).
  */
 public class UserServiceImpl implements UserService{
     private final UserRepository userRepository;
-    private final ModelMapper modelMapper;
+    private final UserMapper userMapper;
 
     @Override
-    public UserDto createUser(UserDto request) {
-        // Создание пользователя. Для MVP запрещаем дубликаты по email.
+    public UserResponse createUser(CreateUserRequest request) {
+        // Create a user. For MVP we reject duplicates by email.
         if(userRepository.existsByEmail(request.getEmail())){
             throw new IllegalArgumentException("User already exists");
         }
-        User user = modelMapper.map(request, User.class);
+        User user = userMapper.toEntity(request);
         User saved = userRepository.save(user);
-        return modelMapper.map(saved, UserDto.class);
+        return userMapper.toResponse(saved);
     }
 }

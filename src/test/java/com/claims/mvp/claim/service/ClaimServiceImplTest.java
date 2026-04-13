@@ -1,13 +1,13 @@
 package com.claims.mvp.claim.service;
 
 import com.claims.mvp.claim.dao.ClaimRepository;
-import com.claims.mvp.claim.dto.BoardingDocumentDto;
-import com.claims.mvp.claim.dto.CreateClaimRequest;
-import com.claims.mvp.claim.dto.EuContextDto;
-import com.claims.mvp.claim.dto.FlightDto;
-import com.claims.mvp.claim.dto.IssueDto;
-import com.claims.mvp.claim.dto.StatusChangeRequest;
-import com.claims.mvp.claim.dto.UpdateClaimDetails;
+import com.claims.mvp.claim.dto.request.BoardingDocumentRequest;
+import com.claims.mvp.claim.dto.request.CreateClaimRequest;
+import com.claims.mvp.claim.dto.request.EuContextRequest;
+import com.claims.mvp.claim.dto.request.FlightRequest;
+import com.claims.mvp.claim.dto.request.IssueRequest;
+import com.claims.mvp.claim.dto.request.StatusChangeRequest;
+import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.EventTypes;
@@ -17,7 +17,8 @@ import com.claims.mvp.claim.model.Claim;
 import com.claims.mvp.claim.model.EuContext;
 import com.claims.mvp.claim.model.Flight;
 import com.claims.mvp.claim.model.Issue;
-import com.claims.mvp.configuration.ServiceConfiguration;
+import com.claims.mvp.claim.mapper.ClaimEntityMapper;
+import com.claims.mvp.claim.mapper.ClaimMapper;
 import com.claims.mvp.eligibility.service.EligibilityService;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
 import com.claims.mvp.claim.service.documents.ClaimDocumentsService;
@@ -33,10 +34,10 @@ import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.modelmapper.ModelMapper;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -67,18 +68,22 @@ class ClaimServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        ModelMapper modelMapper = new ServiceConfiguration().getModelMapper();
         EligibilityService eligibilityService = new EligibilityServiceImpl();
         ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
         ClaimDocumentsService documentsService = new ClaimDocumentsServiceImpl();
+
+        ClaimEntityMapper entityMapper = Mappers.getMapper(ClaimEntityMapper.class);
+        ClaimMapper claimMapper = Mappers.getMapper(ClaimMapper.class);
+
         service = new ClaimLifecycleServiceImpl(
                 claimRepository,
                 userRepository,
-                modelMapper,
                 eligibilityService,
                 workflowService,
                 documentsService,
-                eventsRepository
+                eventsRepository,
+                entityMapper,
+                claimMapper
         );
         lenient().when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(eventsRepository.save(any(ClaimEvents.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -113,7 +118,7 @@ class ClaimServiceImplTest {
         Claim claim = existingClaim(ClaimStatus.DOCS_REQUESTED, List.of());
         when(claimRepository.findById(7L)).thenReturn(Optional.of(claim));
 
-        UpdateClaimDetails request = new UpdateClaimDetails();
+        UpdateClaimDetailsRequest request = new UpdateClaimDetailsRequest();
         request.setDocuments(List.of(
                 document("ticket-1", DocumentTypes.TICKET),
                 document("boarding-pass-1", DocumentTypes.BOARDING_PASS)
@@ -169,7 +174,7 @@ class ClaimServiceImplTest {
                 .hasMessageContaining("Claim not found with id: 99");
     }
 
-    private CreateClaimRequest buildCreateRequest(List<BoardingDocumentDto> documents) {
+    private CreateClaimRequest buildCreateRequest(List<BoardingDocumentRequest> documents) {
         CreateClaimRequest request = new CreateClaimRequest();
         request.setUserId(1L);
         request.setFlight(flight(1800));
@@ -222,8 +227,8 @@ class ClaimServiceImplTest {
         return user;
     }
 
-    private FlightDto flight(int distanceKm) {
-        FlightDto flight = new FlightDto();
+    private FlightRequest flight(int distanceKm) {
+        FlightRequest flight = new FlightRequest();
         flight.setFlightNumber("LH123");
         flight.setFlightDate(LocalDate.of(2026, 3, 1));
         flight.setRouteFrom("FRA");
@@ -234,23 +239,23 @@ class ClaimServiceImplTest {
         return flight;
     }
 
-    private IssueDto delayIssue(int delayMinutes) {
-        IssueDto issue = new IssueDto();
+    private IssueRequest delayIssue(int delayMinutes) {
+        IssueRequest issue = new IssueRequest();
         issue.setType(IssueType.DELAY);
         issue.setDelayMinutes(delayMinutes);
         issue.setExtraordinaryCircumstances(false);
         return issue;
     }
 
-    private EuContextDto euContext(boolean departureFromEu, boolean euCarrier) {
-        EuContextDto context = new EuContextDto();
+    private EuContextRequest euContext(boolean departureFromEu, boolean euCarrier) {
+        EuContextRequest context = new EuContextRequest();
         context.setDepartureFromEu(departureFromEu);
         context.setEuCarrier(euCarrier);
         return context;
     }
 
-    private BoardingDocumentDto document(String id, DocumentTypes type) {
-        BoardingDocumentDto document = new BoardingDocumentDto();
+    private BoardingDocumentRequest document(String id, DocumentTypes type) {
+        BoardingDocumentRequest document = new BoardingDocumentRequest();
         document.setId(id);
         document.setType(type);
         document.setUrl("https://example.test/" + id);

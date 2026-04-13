@@ -1,18 +1,19 @@
 package com.claims.mvp;
 
-import com.claims.mvp.claim.dto.BoardingDocumentDto;
-import com.claims.mvp.claim.dto.ClaimResponse;
-import com.claims.mvp.claim.dto.CreateClaimRequest;
-import com.claims.mvp.claim.dto.EuContextDto;
-import com.claims.mvp.claim.dto.FlightDto;
-import com.claims.mvp.claim.dto.IssueDto;
-import com.claims.mvp.claim.dto.StatusChangeRequest;
-import com.claims.mvp.claim.dto.UpdateClaimDetails;
+import com.claims.mvp.claim.dto.request.BoardingDocumentRequest;
+import com.claims.mvp.claim.dto.request.CreateClaimRequest;
+import com.claims.mvp.claim.dto.request.EuContextRequest;
+import com.claims.mvp.claim.dto.request.FlightRequest;
+import com.claims.mvp.claim.dto.request.IssueRequest;
+import com.claims.mvp.claim.dto.request.StatusChangeRequest;
+import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
+import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.IssueType;
-import com.claims.mvp.events.dto.EventsResponseDto;
-import com.claims.mvp.user.dto.UserDto;
+import com.claims.mvp.events.dto.response.EventsResponse;
+import com.claims.mvp.user.dto.request.CreateUserRequest;
+import com.claims.mvp.user.dto.response.UserResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.ParameterizedTypeReference;
@@ -33,7 +34,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
     @Test
     void createClaim_withoutDocuments_setsDocsRequested() {
-        UserDto user = createUser("Ivan Petrov", "ivan-create@example.com");
+        UserResponse user = createUser("Ivan Petrov", "ivan-create@example.com");
 
         CreateClaimRequest createRequest = new CreateClaimRequest();
         createRequest.setUserId(user.getId());
@@ -57,7 +58,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
     @Test
     void createClaim_withRequiredDocuments_setsReadyToSubmit() {
-        UserDto user = createUser("Lev Rimerov", "lev-ready@example.com");
+        UserResponse user = createUser("Lev Rimerov", "lev-ready@example.com");
 
         CreateClaimRequest createRequest = new CreateClaimRequest();
         createRequest.setUserId(user.getId());
@@ -83,7 +84,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
     @Test
     void updateClaimDetails_withMissingDocuments_promotesToReadyToSubmit() {
-        UserDto user = createUser("Upload Later", "later@example.com");
+        UserResponse user = createUser("Upload Later", "later@example.com");
 
         CreateClaimRequest createRequest = new CreateClaimRequest();
         createRequest.setUserId(user.getId());
@@ -99,7 +100,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .retrieve()
                 .body(ClaimResponse.class);
 
-        UpdateClaimDetails updateRequest = new UpdateClaimDetails();
+        UpdateClaimDetailsRequest updateRequest = new UpdateClaimDetailsRequest();
         updateRequest.setDocuments(List.of(
                 buildDocument("ticket-2", DocumentTypes.TICKET),
                 buildDocument("boarding-pass-2", DocumentTypes.BOARDING_PASS)
@@ -119,7 +120,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
     @Test
     void updateClaimStatus_validTransition_createsEvent() {
-        UserDto user = createUser("Workflow User", "workflow@example.com");
+        UserResponse user = createUser("Workflow User", "workflow@example.com");
 
         CreateClaimRequest createRequest = new CreateClaimRequest();
         createRequest.setUserId(user.getId());
@@ -145,7 +146,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .retrieve()
                 .body(ClaimResponse.class);
 
-        List<EventsResponseDto> events = client().get()
+        List<EventsResponse> events = client().get()
                 .uri("/api/claims/" + created.getId() + "/events")
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
@@ -159,7 +160,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
     @Test
     void updateClaimStatus_invalidTransition_returns409() {
-        UserDto user = createUser("Invalid Workflow", "invalid-workflow@example.com");
+        UserResponse user = createUser("Invalid Workflow", "invalid-workflow@example.com");
 
         CreateClaimRequest createRequest = new CreateClaimRequest();
         createRequest.setUserId(user.getId());
@@ -197,7 +198,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
     void createUser_duplicateEmail_returns409() {
         createUser("Dup User", "dupe@example.com");
 
-        UserDto request = new UserDto();
+        CreateUserRequest request = new CreateUserRequest();
         request.setFullName("Dup User");
         request.setEmail("dupe@example.com");
 
@@ -214,17 +215,17 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         return RestClient.create("http://localhost:" + port);
     }
 
-    private UserDto createUser(String fullName, String email) {
-        UserDto request = new UserDto();
+    private UserResponse createUser(String fullName, String email) {
+        CreateUserRequest request = new CreateUserRequest();
         request.setFullName(fullName);
         request.setEmail(email);
 
-        ResponseEntity<UserDto> response = client().post()
+        ResponseEntity<UserResponse> response = client().post()
                 .uri("/api/users")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
-                .toEntity(UserDto.class);
+                .toEntity(UserResponse.class);
 
         assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
         assertThat(response.getBody()).isNotNull();
@@ -232,8 +233,8 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         return response.getBody();
     }
 
-    private FlightDto buildFlight(int distanceKm) {
-        FlightDto flight = new FlightDto();
+    private FlightRequest buildFlight(int distanceKm) {
+        FlightRequest flight = new FlightRequest();
         flight.setFlightNumber("LH123");
         flight.setFlightDate(LocalDate.of(2026, 3, 1));
         flight.setRouteFrom("FRA");
@@ -244,8 +245,8 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         return flight;
     }
 
-    private IssueDto buildDelayIssue(int delayMinutes) {
-        IssueDto issue = new IssueDto();
+    private IssueRequest buildDelayIssue(int delayMinutes) {
+        IssueRequest issue = new IssueRequest();
         issue.setType(IssueType.DELAY);
         issue.setDelayMinutes(delayMinutes);
         issue.setCancellationNoticeDays(null);
@@ -253,15 +254,15 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         return issue;
     }
 
-    private EuContextDto buildEuContext(boolean departureFromEu, boolean euCarrier) {
-        EuContextDto ctx = new EuContextDto();
+    private EuContextRequest buildEuContext(boolean departureFromEu, boolean euCarrier) {
+        EuContextRequest ctx = new EuContextRequest();
         ctx.setDepartureFromEu(departureFromEu);
         ctx.setEuCarrier(euCarrier);
         return ctx;
     }
 
-    private BoardingDocumentDto buildDocument(String id, DocumentTypes type) {
-        BoardingDocumentDto document = new BoardingDocumentDto();
+    private BoardingDocumentRequest buildDocument(String id, DocumentTypes type) {
+        BoardingDocumentRequest document = new BoardingDocumentRequest();
         document.setId(id);
         document.setType(type);
         document.setUrl("https://example.test/" + id);

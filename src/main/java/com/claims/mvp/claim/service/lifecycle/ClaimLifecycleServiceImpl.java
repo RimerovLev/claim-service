@@ -1,7 +1,12 @@
 package com.claims.mvp.claim.service.lifecycle;
 
 import com.claims.mvp.claim.dao.ClaimRepository;
-import com.claims.mvp.claim.dto.*;
+import com.claims.mvp.claim.mapper.ClaimEntityMapper;
+import com.claims.mvp.claim.mapper.ClaimMapper;
+import com.claims.mvp.claim.dto.request.CreateClaimRequest;
+import com.claims.mvp.claim.dto.request.StatusChangeRequest;
+import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
+import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.EventTypes;
@@ -9,16 +14,15 @@ import com.claims.mvp.claim.model.*;
 import com.claims.mvp.claim.service.ClaimService;
 import com.claims.mvp.claim.service.documents.ClaimDocumentsService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
-import com.claims.mvp.eligibility.dto.EligibilityResult;
+import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityService;
 import com.claims.mvp.events.dao.EventsRepository;
-import com.claims.mvp.events.dto.EventsResponseDto;
+import com.claims.mvp.events.dto.response.EventsResponse;
 import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.dao.UserRepository;
 import com.claims.mvp.user.model.User;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,28 +37,29 @@ import java.util.stream.Collectors;
 /**
  * ClaimLifecycleService (application/orchestrator layer).
  *
- * Отвечает за "жизненный цикл" Claim с точки зрения API:
+ * Owns the claim "lifecycle" from the API perspective:
  * - createClaim / updateClaimDetails / updateClaimStatus
- * - сохранение Claim и связанных сущностей
- * - запись событий (ClaimEvents)
+ * - persisting Claim and related entities
+ * - writing events (ClaimEvents)
  *
- * Важное правило: этот сервис оркестрирует другие сервисы и репозитории,
- * а "чистые" правила (workflow, документы, eligibility) делегирует в отдельные компоненты.
+ * Rule of thumb: this service orchestrates other services and repositories,
+ * while delegating "pure" rules (workflow, documents, eligibility) to dedicated components.
  */
 public class ClaimLifecycleServiceImpl implements ClaimService {
     private final ClaimRepository claimRepository;
     private final UserRepository userRepository;
-    private final ModelMapper modelMapper;
     private final EligibilityService eligibilityService;
     private final ClaimWorkflowService workflowService;
     private final ClaimDocumentsService documentsService;
     private final EventsRepository eventsRepository;
+    private final ClaimEntityMapper claimEntityMapper;
+    private final ClaimMapper claimMapper;
 
     @Override
     @Transactional
     public ClaimResponse createClaim(CreateClaimRequest request) {
-        // Создаём новый claim и заполняем "сырьевые" данные (user/flight/issue/euContext/documents).
-        // Затем одним шагом пересчитываем derived поля (eligible/compensation/status).
+        // Create a new claim and populate "source" data (user/flight/issue/euContext/documents).
+        // Then, in one step, recalculate derived fields (eligible/compensation/status).
         Claim claim = new Claim();
 
         User user = userRepository.findById(request.getUserId())
@@ -62,67 +67,67 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         claim.setUser(user);
         claim.setStatus(ClaimStatus.NEW);
 
-        Flight flight = modelMapper.map(request.getFlight(), Flight.class);
+        Flight flight = claimEntityMapper.toEntity(request.getFlight());
         flight.setClaim(claim);
         claim.setFlight(flight);
 
-        EuContext euContext = modelMapper.map(request.getEuContext(), EuContext.class);
+        EuContext euContext = claimEntityMapper.toEntity(request.getEuContext());
         euContext.setClaim(claim);
         claim.setEuContext(euContext);
 
-        Issue issue = modelMapper.map(request.getIssue(), Issue.class);
+        Issue issue = claimEntityMapper.toEntity(request.getIssue());
         issue.setClaim(claim);
         claim.setIssue(issue);
 
         claim.setDocuments(documentsService.mapForCreate(request.getDocuments(), claim));
 
-        // Пересчёт derived полей в одном месте для консистентности create/update.
+        // Recalculate derived fields in one place to keep create/update consistent.
         recalcDerivedFields(claim);
 
         claimRepository.save(claim);
-        return modelMapper.map(claim, ClaimResponse.class);
+        return claimMapper.toResponse(claim);
     }
 
     @Override
     @Transactional
-    public ClaimResponse updateClaimDetails(Long id, UpdateClaimDetails request) {
-        // Частичное обновление деталей claim:
-        // если какой-то блок не пришёл (null) — не трогаем существующие данные.
+    public ClaimResponse updateClaimDetails(Long id, UpdateClaimDetailsRequest request) {
+        // Partial update of claim details:
+        // if a block is missing (null) we keep the existing data unchanged.
         Claim claim = claimRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
 
         if (request.getFlight() != null) {
-            // Обновляем существующий Flight in-place, чтобы Hibernate не создавал лишних записей.
+            // Update the existing Flight in-place to avoid creating extra rows.
             if (claim.getFlight() == null) {
                 Flight flight = new Flight();
                 flight.setClaim(claim);
                 claim.setFlight(flight);
             }
-            modelMapper.map(request.getFlight(), claim.getFlight());
+            claimEntityMapper.update(request.getFlight(), claim.getFlight());
             claim.getFlight().setClaim(claim);
         }
         if (request.getIssue() != null) {
-            // Аналогично для Issue.
+            // Same approach for Issue.
             if (claim.getIssue() == null) {
                 Issue issue = new Issue();
                 issue.setClaim(claim);
                 claim.setIssue(issue);
             }
-            modelMapper.map(request.getIssue(), claim.getIssue());
+            claimEntityMapper.update(request.getIssue(), claim.getIssue());
             claim.getIssue().setClaim(claim);
         }
         if (request.getEuContext() != null) {
-            // Аналогично для EuContext.
+            // Same approach for EuContext.
             if (claim.getEuContext() == null) {
                 EuContext context = new EuContext();
                 context.setClaim(claim);
                 claim.setEuContext(context);
             }
-            modelMapper.map(request.getEuContext(), claim.getEuContext());
+            claimEntityMapper.update(request.getEuContext(), claim.getEuContext());
             claim.getEuContext().setClaim(claim);
         }
         if (request.getDocuments() != null) {
-            // Документы можно "дозагружать" — мержим по типам, см. ClaimDocumentsService.
+            // Documents can be uploaded later — merge by types, see ClaimDocumentsService.
             documentsService.mergeForUpdate(claim, request.getDocuments());
         }
 
@@ -130,17 +135,17 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
             throw new IllegalArgumentException("Claim details incomplete");
         }
 
-        // После апдейта деталей обязательно пересчитываем derived поля (eligible/compensation/status).
+        // After updating details, always recalculate derived fields (eligible/compensation/status).
         recalcDerivedFields(claim);
 
         claimRepository.save(claim);
-        return modelMapper.map(claim, ClaimResponse.class);
+        return claimMapper.toResponse(claim);
     }
 
     @Override
     @Transactional
     public ClaimResponse updateClaimStatus(Long id, StatusChangeRequest request) {
-        // Ручная смена статуса: проверяем допустимость перехода и пишем ClaimEvents.
+        // Manual status change: validate transition and write ClaimEvents.
         ClaimStatus newStatus = request.getStatus();
         if (newStatus == null) {
             throw new IllegalArgumentException("Status must not be null");
@@ -164,49 +169,46 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         claimRepository.save(claim);
         eventsRepository.save(claimEvents);
 
-        return modelMapper.map(claim, ClaimResponse.class);
+        return claimMapper.toResponse(claim);
     }
 
     @Override
     public ClaimResponse getClaimById(Long id) {
-        // Получение одного claim по id.
+        // Fetch a single claim by id.
         return claimRepository.findById(id)
-                .map(claim -> modelMapper.map(claim, ClaimResponse.class))
+                .map(claimMapper::toResponse)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
     }
 
     @Override
     public Iterable<ClaimResponse> getAllClaims() {
-        // Получение списка claim. Для MVP отдаём все.
+        // Fetch claim list. For MVP we return all.
         return claimRepository.findAll().stream()
-                .map(claim -> modelMapper.map(claim, ClaimResponse.class))
+                .map(claimMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<EventsResponseDto> getClaimEvents(Long id) {
-        // События по claim. Сначала проверяем существование claim, чтобы возвращать 404, а не пустой список.
+    public List<EventsResponse> getClaimEvents(Long id) {
+        // Claim events. First validate claim exists to return 404 instead of an empty list.
         if (!claimRepository.existsById(id)) {
             throw new EntityNotFoundException("Claim not found with id: " + id);
         }
         return eventsRepository.findByClaimIdOrderByCreatedAtDesc(id).stream()
-                .map(event -> modelMapper.map(event, EventsResponseDto.class))
+                .map(claimMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     private void recalcDerivedFields(Claim claim) {
-        // Центральный пересчёт derived полей, чтобы create/update вели себя одинаково:
-        // - eligibilityService решает eligible/compensation и какие документы нужны
-        // - documentsService даёт какие документы реально загружены
-        // - workflowService решает, как обновить статус в pre-submit зоне
+        // Centralized recalculation of derived fields to keep create/update consistent:
+        // - eligibilityService decides eligible/compensation and which documents are required
+        // - documentsService provides which documents are actually uploaded
+        // - workflowService decides how to update status in the pre-submit stage
         EligibilityResult eligibilityResult = eligibilityService.evaluate(
-                modelMapper.map(claim.getIssue(), IssueDto.class),
-                modelMapper.map(claim.getFlight(), FlightDto.class),
-                modelMapper.map(claim.getEuContext(), EuContextDto.class),
+                claim.getIssue(),
+                claim.getFlight(),
+                claim.getEuContext(),
                 Optional.ofNullable(claim.getDocuments()).orElse(List.of())
-                        .stream()
-                        .map(d -> modelMapper.map(d, BoardingDocumentDto.class))
-                        .collect(Collectors.toList())
         );
 
         claim.setEligible(eligibilityResult.getEligible());

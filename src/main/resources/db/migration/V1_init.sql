@@ -1,0 +1,61 @@
+create table users
+(
+    id         bigserial primary key,
+    full_name  varchar(255) not null,
+    email      varchar(255) not null unique,
+    created_at timestamptz
+);
+
+create table claims
+(
+    id                  bigseral primary key,
+    user_id             bigint      not null references users (id),
+    status              varchar(64) not null,
+    eligible            boolean,
+    compensation_amount integer,
+    created_at          timestamptz
+);
+
+create table flights
+(
+    id            bigserial primary key,
+    claim_id      bigint      not null unique references claims (id) on delete cascade,
+    flight_number varchar(64) not null,
+    flight_date   date        not null,
+    route_from    varchar(8)  not null,
+    route_to      varchar(8)  not null,
+    airline       varchar(64) not null,
+    distance_km   integer     not null
+);
+
+create table issue
+(
+    id                          bigserial primary key,
+    claim_id                    bigint      not null references claims (id) on delete cascade,
+    type                        varchar(64) not null,
+    delay_minutes               integer,
+    cancelation_notice_days     integer,
+    extraordinary_circumstances boolean     not null
+);
+
+create table documents
+(
+    id          text primary key,
+    claim_id    bigint      not null references claims (id) on delete cascade,
+    type        varchar(64) not null,
+    url         text        not null,
+    uploaded_at timestamptz
+);
+
+create table claim_events
+(
+    id         bigserial primary key,
+    claim_id   bigint      not null references claims (id) on delete cascade,
+    type       varchar(64) not null,
+    payload    text        not null,
+    created_at timestamptz
+);
+
+create index idx_claims_user_id on claims (user_id);
+create index idx_documents_claim_id on documents (claim_id);
+create index idx_claim_events_claim_id on claim_events (claim_id);

@@ -1,16 +1,16 @@
 package com.claims.mvp.eligibility.service;
 
-import com.claims.mvp.claim.dto.BoardingDocumentDto;
-import com.claims.mvp.claim.dto.EuContextDto;
-import com.claims.mvp.claim.dto.FlightDto;
-import com.claims.mvp.claim.dto.IssueDto;
-import com.claims.mvp.eligibility.dto.EligibilityResult;
+import com.claims.mvp.claim.model.BoardingDocuments;
+import com.claims.mvp.claim.model.EuContext;
+import com.claims.mvp.claim.model.Flight;
+import com.claims.mvp.claim.model.Issue;
+import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 
 import java.util.List;
 
 public interface EligibilityService {
 
-    EligibilityResult evaluate(IssueDto issue, FlightDto flight, EuContextDto euContext, List<BoardingDocumentDto> documents);
+    EligibilityResult evaluate(Issue issue, Flight flight, EuContext euContext, List<BoardingDocuments> documents);
 
     int calculateCompensationAmount(Integer distanceKm);
 }

@@ -1,6 +1,7 @@
 package com.claims.mvp.user.controller;
 
-import com.claims.mvp.user.dto.UserDto;
+import com.claims.mvp.user.dto.request.CreateUserRequest;
+import com.claims.mvp.user.dto.response.UserResponse;
 import com.claims.mvp.exception.GlobalExceptionHandler;
 import com.claims.mvp.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +27,7 @@ class UserControllerTest {
             if ("dupe@example.com".equals(request.getEmail())) {
                 throw new IllegalArgumentException("User already exists");
             }
-            UserDto dto = new UserDto();
+            UserResponse dto = new UserResponse();
             dto.setId(1L);
             dto.setFullName(request.getFullName());
             dto.setEmail(request.getEmail());
@@ -52,7 +53,7 @@ class UserControllerTest {
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.email").value("ivan@example.com"));
     }

@@ -10,11 +10,11 @@ import java.util.Set;
 /**
  * ClaimWorkflowService.
  *
- * Отвечает за workflow статусов claim:
- * - какие переходы разрешены (FSM)
- * - автопереход между DOCS_REQUESTED и READY_TO_SUBMIT на этапе "до отправки"
+ * Owns claim status workflow rules:
+ * - which transitions are allowed (FSM)
+ * - auto-switch between DOCS_REQUESTED and READY_TO_SUBMIT in the "pre-submit" stage
  *
- * Важно: после SUBMITTED статус больше не трогаем автоматически — только ручные переходы.
+ * Important: after SUBMITTED we do not auto-change the status anymore — only manual transitions.
  */
 public class ClaimWorkflowServiceImpl implements ClaimWorkflowService {
 
@@ -31,7 +31,7 @@ public class ClaimWorkflowServiceImpl implements ClaimWorkflowService {
 
     @Override
     public void assertTransitionAllowed(ClaimStatus from, ClaimStatus to) {
-        // Используется в ручной смене статуса (endpoint /status).
+        // Used by the manual status change endpoint (/status).
         if (from == null || to == null) {
             throw new IllegalArgumentException("Status must not be null");
         }
@@ -42,10 +42,10 @@ public class ClaimWorkflowServiceImpl implements ClaimWorkflowService {
 
     @Override
     public ClaimStatus autoPreSubmitStatus(ClaimStatus current, boolean hasAllRequiredDocuments) {
-        // Авто-статус только в pre-submit зоне:
-        // - если все required документы загружены -> READY_TO_SUBMIT
-        // - иначе -> DOCS_REQUESTED
-        // После SUBMITTED (и дальше) не вмешиваемся.
+        // Auto-status only in the pre-submit stage:
+        // - if all required documents are uploaded -> READY_TO_SUBMIT
+        // - otherwise -> DOCS_REQUESTED
+        // After SUBMITTED (and beyond) we do not interfere.
         if (current == ClaimStatus.NEW
                 || current == ClaimStatus.DOCS_REQUESTED
                 || current == ClaimStatus.READY_TO_SUBMIT) {

@@ -1,17 +1,16 @@
 package com.claims.mvp.claim.controller;
 
-import com.claims.mvp.claim.dto.ClaimResponse;
-import com.claims.mvp.claim.dto.CreateClaimRequest;
-import com.claims.mvp.claim.dto.StatusChangeRequest;
-import com.claims.mvp.claim.dto.UpdateClaimDetails;
+import com.claims.mvp.claim.dto.request.CreateClaimRequest;
+import com.claims.mvp.claim.dto.request.StatusChangeRequest;
+import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
+import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.service.ClaimService;
-import com.claims.mvp.events.dto.EventsResponseDto;
+import com.claims.mvp.events.dto.response.EventsResponse;
 import com.claims.mvp.exception.GlobalExceptionHandler;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.modelmapper.ModelMapper;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -43,9 +42,9 @@ class ClaimControllerTest {
         when(claimService.createClaim(any(CreateClaimRequest.class))).thenReturn(response(1L, ClaimStatus.DOCS_REQUESTED));
         when(claimService.getClaimById(7L)).thenReturn(response(7L, ClaimStatus.NEW));
         when(claimService.getClaimById(999L)).thenThrow(new EntityNotFoundException("Claim not found with id: 999"));
-        when(claimService.updateClaimDetails(eq(7L), any(UpdateClaimDetails.class))).thenReturn(response(7L, ClaimStatus.READY_TO_SUBMIT));
+        when(claimService.updateClaimDetails(eq(7L), any(UpdateClaimDetailsRequest.class))).thenReturn(response(7L, ClaimStatus.READY_TO_SUBMIT));
         when(claimService.updateClaimStatus(eq(7L), any(StatusChangeRequest.class))).thenReturn(response(7L, ClaimStatus.SUBMITTED));
-        when(claimService.getClaimEvents(7L)).thenReturn(List.of(new EventsResponseDto(5L, com.claims.mvp.claim.enums.EventTypes.STATUS_CHANGED, "{\"from\":\"READY_TO_SUBMIT\",\"to\":\"SUBMITTED\"}", OffsetDateTime.now())));
+        when(claimService.getClaimEvents(7L)).thenReturn(List.of(new EventsResponse(5L, com.claims.mvp.claim.enums.EventTypes.STATUS_CHANGED, "{\"from\":\"READY_TO_SUBMIT\",\"to\":\"SUBMITTED\"}", OffsetDateTime.now())));
 
         LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
         validator.afterPropertiesSet();
@@ -61,7 +60,7 @@ class ClaimControllerTest {
         mockMvc.perform(post("/api/claims")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validCreateBody()))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.status").value("DOCS_REQUESTED"));
     }
