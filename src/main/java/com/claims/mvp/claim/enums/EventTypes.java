@@ -8,6 +8,8 @@ public enum EventTypes {
     FOLLOW_UP_SENT,
     CLAIM_APPROVED,
     CLAIM_REJECTED,
-    CLAIM_PAID
+    CLAIM_PAID,
+    CLAIM_CLOSED
 
-}
+
+    }

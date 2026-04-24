@@ -191,6 +191,62 @@ class ClaimIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
+    void getClaimById_existingClaim_returnsClaim() {
+        UserResponse user = createUser("Get Claim User", "get-claim@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of());
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        ClaimResponse fetched = client().get()
+                .uri("/api/claims/" + created.getId())
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(fetched).isNotNull();
+        assertThat(fetched.getId()).isEqualTo(created.getId());
+        assertThat(fetched.getStatus()).isEqualTo(ClaimStatus.DOCS_REQUESTED);
+    }
+
+    @Test
+    void getAllClaims_returnsCreatedClaims() {
+        UserResponse user = createUser("List User", "list-user@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of());
+
+        client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        List<ClaimResponse> claims = client().get()
+                .uri("/api/claims")
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {
+                });
+
+        assertThat(claims).isNotNull();
+        assertThat(claims).isNotEmpty();
+    }
+
+    @Test
     void createUser_duplicateEmail_returns409() {
         createUser("Dup User", "dupe@example.com");
 
@@ -205,6 +261,37 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .exchange((req, res) -> res.getStatusCode().value());
 
         assertThat(status).isEqualTo(409);
+    }
+
+    @Test
+    void createUser_invalidEmail_returns400AndValidationMessage() {
+        CreateUserRequest request = new CreateUserRequest();
+        request.setFullName("Bad Email");
+        request.setEmail("not-an-email");
+
+        ResponseEntity<ErrorResponse> response = client().post()
+                .uri("/api/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode())
+                        .body(res.bodyTo(ErrorResponse.class)));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).contains("почты");
+    }
+
+    @Test
+    void createClaim_missingRequiredFields_returns400() {
+        CreateClaimRequest request = new CreateClaimRequest();
+
+        int status = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .exchange((req, res) -> res.getStatusCode().value());
+
+        assertThat(status).isEqualTo(400);
     }
 
     private RestClient client() {
@@ -266,7 +353,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
     }
 
     @Test
-    void getClaimLetter_existingClaim_returnSubjectAndBody() {
+    void getClaimLetter_existingClaim_returnsSubjectAndBody() {
         UserResponse user = createUser("Letter User", "letter-user@example.com");
 
         CreateClaimRequest createRequest = new CreateClaimRequest();
@@ -276,18 +363,18 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         createRequest.setEuContext(buildEuContext(true, true));
         createRequest.setDocuments(List.of());
 
-        ClaimResponse creaated = client().post()
+        ClaimResponse created = client().post()
                 .uri("/api/claims")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(createRequest)
                 .retrieve()
                 .body(ClaimResponse.class);
 
-        assertThat(creaated).isNotNull();
-        assertThat(creaated.getId()).isNotNull();
+        assertThat(created).isNotNull();
+        assertThat(created.getId()).isNotNull();
 
         LetterResponse letter = client().get()
-                .uri("/api/claims/" + creaated.getId() + "/letter")
+                .uri("/api/claims/" + created.getId() + "/letter")
                 .retrieve()
                 .body(LetterResponse.class);
 
@@ -339,6 +426,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(submitted).isNotNull();
         assertThat(submitted.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
     }
+
     @Test
     void submitClaim_docsRequested_returns409() {
         UserResponse user = createUser("Submit Blocked", "submit-blocked@example.com");
@@ -371,5 +459,287 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
         assertThat(status).isEqualTo(409);
     }
+
+    @Test
+    void sendFollowUp_afterSubmit_setsFollowUpSentStatus() {
+        UserResponse user = createUser("Follow Up User", "follow-up-user@example.com");
+
+        ClaimResponse created = createReadyToSubmitClaim(user, "follow-up");
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
+
+        FollowUpRequest followUpRequest = new FollowUpRequest();
+        followUpRequest.setNote("second reminder sent");
+
+        ClaimResponse followedUp = client().post()
+                .uri("/api/claims/" + submitted.getId() + "/follow-up")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(followUpRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(followedUp).isNotNull();
+        assertThat(followedUp.getStatus()).isEqualTo(ClaimStatus.FOLLOW_UP_SENT);
+    }
+
+    @Test
+    void approveClaim_afterFollowUp_setsApprovedStatus() {
+        UserResponse user = createUser("Approve User", "approve-user@example.com");
+
+        ClaimResponse created = createReadyToSubmitClaim(user, "approve");
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
+        ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
+
+        ApproveClaimRequest approveRequest = new ApproveClaimRequest();
+        approveRequest.setNote("approved via email");
+
+        ClaimResponse approved = client().post()
+                .uri("/api/claims/" + followedUp.getId() + "/approve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(approveRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(approved).isNotNull();
+        assertThat(approved.getStatus()).isEqualTo(ClaimStatus.APPROVED);
+    }
+
+    @Test
+    void markClaimAsPaid_afterApproval_setsPaidStatus() {
+        UserResponse user = createUser("Paid User", "paid-user@example.com");
+        ClaimResponse created = createReadyToSubmitClaim(user, "paid");
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
+        ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
+        ClaimResponse approved = approveClaim(followedUp.getId(), "approved by airline");
+
+        PaidClaimRequest paidRequest = new PaidClaimRequest();
+        paidRequest.setNote("compensation received");
+
+        ClaimResponse paid = client().post()
+                .uri("/api/claims/" + approved.getId() + "/paid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(paidRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(paid).isNotNull();
+        assertThat(paid.getStatus()).isEqualTo(ClaimStatus.PAID);
+    }
+
+    @Test
+    void approveClaim_fromReadyToSubmit_returns409() {
+        UserResponse user = createUser("Approve Too Early", "approve-too-early@example.com");
+        ClaimResponse created = createReadyToSubmitClaim(user, "early-approve");
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+
+        ApproveClaimRequest approveRequest = new ApproveClaimRequest();
+        approveRequest.setNote("trying to approve too early");
+
+        int status = client().post()
+                .uri("/api/claims/" + created.getId() + "/approve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(approveRequest)
+                .exchange((req, res) -> res.getStatusCode().value());
+
+        assertThat(status).isEqualTo(409);
+    }
+
+    @Test
+    void rejectClaim_afterFollowUp_setsRejectedStatus() {
+        UserResponse user = createUser("Reject User", "reject-user@example.com");
+        ClaimResponse created = createReadyToSubmitClaim(user, "reject");
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
+        ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent after no response");
+
+        RejectClaimRequest rejectRequest = new RejectClaimRequest();
+        rejectRequest.setNote("airline rejected the claim");
+
+        ClaimResponse rejected = client().post()
+                .uri("/api/claims/" + created.getId() + "/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(rejectRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(rejected).isNotNull();
+        assertThat(rejected.getStatus()).isEqualTo(ClaimStatus.REJECTED);
+    }
+
+    @Test
+    void closeClaim_afterPaid_setsClosedStatus() {
+        UserResponse user = createUser("Close Paid User", "close-paid@example.com");
+
+        ClaimResponse created = createReadyToSubmitClaim(user, "close-paid");
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
+        ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
+        ClaimResponse approved = approveClaim(followedUp.getId(), "approved");
+        ClaimResponse paid = markClaimAsPaid(approved.getId(), "paid");
+
+        CloseClaimRequest closeRequest = new CloseClaimRequest();
+        closeRequest.setNote("claim completed");
+
+        ClaimResponse closed = client().post()
+                .uri("/api/claims/" + paid.getId() + "/close")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(closeRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(closed).isNotNull();
+        assertThat(closed.getStatus()).isEqualTo(ClaimStatus.CLOSED);
+    }
+
+    @Test
+    void closeClaim_afterRejected_setsClosedStatus() {
+        UserResponse user = createUser("Close Rejected User", "close-rejected@example.com");
+
+        ClaimResponse created = createReadyToSubmitClaim(user, "close-rejected");
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
+        ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
+        ClaimResponse rejected = rejectClaim(followedUp.getId(), "rejected");
+
+        CloseClaimRequest closeRequest = new CloseClaimRequest();
+        closeRequest.setNote("claim archived");
+
+        ClaimResponse closed = client().post()
+                .uri("/api/claims/" + rejected.getId() + "/close")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(closeRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(closed).isNotNull();
+        assertThat(closed.getStatus()).isEqualTo(ClaimStatus.CLOSED);
+    }
+
+    @Test
+    void closeClaim_fromApproved_returns409() {
+        UserResponse user = createUser("Close Too Early", "close-too-early@example.com");
+
+        ClaimResponse created = createReadyToSubmitClaim(user, "close-early");
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
+        ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
+        ClaimResponse approved = approveClaim(followedUp.getId(), "approved");
+
+        CloseClaimRequest closeRequest = new CloseClaimRequest();
+        closeRequest.setNote("trying to close too early");
+
+        int status = client().post()
+                .uri("/api/claims/" + approved.getId() + "/close")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(closeRequest)
+                .exchange((req, res) -> res.getStatusCode().value());
+
+        assertThat(status).isEqualTo(409);
+    }
+
+    private ClaimResponse createReadyToSubmitClaim(UserResponse user, String suffix) {
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument(suffix + "-ticket", DocumentTypes.TICKET),
+                buildDocument(suffix + "-boarding", DocumentTypes.BOARDING_PASS)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+        return created;
+    }
+
+    private ClaimResponse submitClaim(Long id, String note) {
+        SubmitClaimRequest request = new SubmitClaimRequest();
+        request.setNote(note);
+
+        ClaimResponse response = client().post()
+                .uri("/api/claims/" + id + "/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+        return response;
+    }
+
+    private ClaimResponse sendFollowUp(Long id, String note) {
+        FollowUpRequest request = new FollowUpRequest();
+        request.setNote(note);
+
+        ClaimResponse response = client().post()
+                .uri("/api/claims/" + id + "/follow-up")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(ClaimStatus.FOLLOW_UP_SENT);
+        return response;
+    }
+
+    private ClaimResponse approveClaim(Long id, String note) {
+        ApproveClaimRequest request = new ApproveClaimRequest();
+        request.setNote(note);
+
+        ClaimResponse response = client().post()
+                .uri("/api/claims/" + id + "/approve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(ClaimStatus.APPROVED);
+        return response;
+    }
+
+    private ClaimResponse rejectClaim(Long id, String note) {
+        RejectClaimRequest request = new RejectClaimRequest();
+        request.setNote(note);
+
+        ClaimResponse response = client().post()
+                .uri("/api/claims/" + id + "/reject")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(ClaimStatus.REJECTED);
+        return response;
+    }
+
+    private ClaimResponse markClaimAsPaid(Long id, String note) {
+        PaidClaimRequest request = new PaidClaimRequest();
+        request.setNote(note);
+
+        ClaimResponse response = client().post()
+                .uri("/api/claims/" + id + "/paid")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(ClaimStatus.PAID);
+        return response;
+    }
+
+    private record ErrorResponse(String message) {
+    }
+
 
 }

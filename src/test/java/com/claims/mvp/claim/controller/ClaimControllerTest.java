@@ -1,27 +1,23 @@
 package com.claims.mvp.claim.controller;
 
+import com.claims.mvp.claim.dto.request.CloseClaimRequest;
 import com.claims.mvp.claim.dto.request.CreateClaimRequest;
-import com.claims.mvp.claim.dto.request.StatusChangeRequest;
-import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
+import com.claims.mvp.claim.dto.request.SubmitClaimRequest;
 import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.service.ClaimService;
-import com.claims.mvp.events.dto.response.EventsResponse;
 import com.claims.mvp.exception.GlobalExceptionHandler;
-import jakarta.persistence.EntityNotFoundException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
-
-import java.time.OffsetDateTime;
-import java.util.List;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -29,128 +25,25 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+@WebMvcTest(ClaimController.class)
+@Import(GlobalExceptionHandler.class)
 class ClaimControllerTest {
 
+    @Autowired
     private MockMvc mockMvc;
 
+    @MockitoBean
     private ClaimService claimService;
 
-    @BeforeEach
-    void setUp() {
-        claimService = mock(ClaimService.class);
-
-        when(claimService.createClaim(any(CreateClaimRequest.class))).thenReturn(response(1L, ClaimStatus.DOCS_REQUESTED));
-        when(claimService.getClaimById(7L)).thenReturn(response(7L, ClaimStatus.NEW));
-        when(claimService.getClaimById(999L)).thenThrow(new EntityNotFoundException("Claim not found with id: 999"));
-        when(claimService.updateClaimDetails(eq(7L), any(UpdateClaimDetailsRequest.class))).thenReturn(response(7L, ClaimStatus.READY_TO_SUBMIT));
-        when(claimService.updateClaimStatus(eq(7L), any(StatusChangeRequest.class))).thenReturn(response(7L, ClaimStatus.SUBMITTED));
-        when(claimService.getClaimEvents(7L)).thenReturn(List.of(new EventsResponse(5L, com.claims.mvp.claim.enums.EventTypes.STATUS_CHANGED, "{\"from\":\"READY_TO_SUBMIT\",\"to\":\"SUBMITTED\"}", OffsetDateTime.now())));
-
-        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
-        validator.afterPropertiesSet();
-
-        mockMvc = MockMvcBuilders.standaloneSetup(new ClaimController(claimService))
-                .setControllerAdvice(new GlobalExceptionHandler())
-                .setValidator(validator)
-                .build();
-    }
-
     @Test
-    void createClaim_returnsClaim() throws Exception {
-        mockMvc.perform(post("/api/claims")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(validCreateBody()))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.status").value("DOCS_REQUESTED"));
-    }
-
-    @Test
-    void createClaim_invalidRequest_returns400() throws Exception {
-        String body = """
-                {
-                  "userId": null,
-                  "flight": null,
-                  "issue": null,
-                  "euContext": null
-                }
-                """;
-
-        mockMvc.perform(post("/api/claims")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void getClaimById_notFound_returns404() throws Exception {
-        mockMvc.perform(get("/api/claims/999"))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void updateClaimDetails_returnsUpdatedClaim() throws Exception {
-        String body = """
-                {
-                  "documents": [
-                    {
-                      "id": "ticket-1",
-                      "type": "TICKET",
-                      "url": "https://example.test/ticket-1"
-                    },
-                    {
-                      "id": "boarding-pass-1",
-                      "type": "BOARDING_PASS",
-                      "url": "https://example.test/boarding-pass-1"
-                    }
-                  ]
-                }
-                """;
-
-        mockMvc.perform(patch("/api/claims/7/update")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("READY_TO_SUBMIT"));
-    }
-
-    @Test
-    void updateClaimStatus_returnsUpdatedClaim() throws Exception {
-        String body = """
-                {
-                  "status": "SUBMITTED",
-                  "note": "sent via email"
-                }
-                """;
-
-        mockMvc.perform(post("/api/claims/7/status")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("SUBMITTED"));
-    }
-
-    @Test
-    void getClaimEvents_returnsEvents() throws Exception {
-        mockMvc.perform(get("/api/claims/7/events"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(5))
-                .andExpect(jsonPath("$[0].type").value("STATUS_CHANGED"));
-    }
-
-    private ClaimResponse response(Long id, ClaimStatus status) {
+    void createClaim_validRequest_returns201() throws Exception {
         ClaimResponse response = new ClaimResponse();
-        response.setId(id);
-        response.setStatus(status);
-        response.setEligible(true);
-        response.setCompensationAmount(400);
-        response.setCreatedAt(OffsetDateTime.now());
-        response.setDocuments(List.of());
-        return response;
-    }
+        response.setId(10L);
+        response.setStatus(ClaimStatus.DOCS_REQUESTED);
 
-    private String validCreateBody() {
-        return """
+        when(claimService.createClaim(any(CreateClaimRequest.class))).thenReturn(response);
+
+        String requestBody = """
                 {
                   "userId": 1,
                   "flight": {
@@ -170,8 +63,93 @@ class ClaimControllerTest {
                   "euContext": {
                     "departureFromEu": true,
                     "euCarrier": true
-                  }
+                  },
+                  "documents": []
                 }
                 """;
+
+        mockMvc.perform(post("/api/claims")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(10))
+                .andExpect(jsonPath("$.status").value("DOCS_REQUESTED"));
+
+        verify(claimService).createClaim(any(CreateClaimRequest.class));
+    }
+
+    @Test
+    void createClaim_invalidRequest_returns400WithMessage() throws Exception {
+        mockMvc.perform(post("/api/claims")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    void submitClaim_delegatesToService() throws Exception {
+        ClaimResponse response = new ClaimResponse();
+        response.setId(11L);
+        response.setStatus(ClaimStatus.SUBMITTED);
+
+        when(claimService.submitClaim(eq(11L), any(SubmitClaimRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/claims/11/submit")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "note": "submitted via email"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUBMITTED"));
+
+        verify(claimService).submitClaim(eq(11L), any(SubmitClaimRequest.class));
+    }
+
+    @Test
+    void closeClaim_delegatesToService() throws Exception {
+        ClaimResponse response = new ClaimResponse();
+        response.setId(12L);
+        response.setStatus(ClaimStatus.CLOSED);
+
+        when(claimService.closeClaim(eq(12L), any(CloseClaimRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/claims/12/close")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "note": "claim completed"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"));
+
+        verify(claimService).closeClaim(eq(12L), any(CloseClaimRequest.class));
+    }
+
+    @Test
+    void updateClaimDetails_validationFailure_returns400WithMessage() throws Exception {
+        mockMvc.perform(patch("/api/claims/5/update")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "flight": {
+                                    "flightNumber": ""
+                                  }
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").exists());
+    }
+
+    @Test
+    void getClaimById_notFound_fromService_returns404() throws Exception {
+        when(claimService.getClaimById(99L)).thenThrow(new jakarta.persistence.EntityNotFoundException("Claim not found"));
+
+        mockMvc.perform(get("/api/claims/99"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Claim not found"));
     }
 }

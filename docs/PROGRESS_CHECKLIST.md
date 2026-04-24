@@ -1,6 +1,6 @@
-# Claims MVP — Progress Checklist (Printable)
+# Claims MVP — Progress Checklist
 
-Дата: 2026-04-13  
+Дата: 2026-04-24  
 Проект: `claims-mvp`  
 
 Легенда:
@@ -19,6 +19,7 @@
 - [x] Сохранение кейса в “CRM” (таблицы + `GET /api/claims`, `GET /api/claims/{id}`)
 - [ ] Базовые follow-up напоминания
 - [ ] Аналитика по статусам кейсов
+- [x] Action-based workflow для жизненного цикла кейса
 
 ## 1) Intake / Claim Intake Layer
 - [x] Создание кейса пользователем
@@ -48,6 +49,12 @@
 - [x] Статусы + allowed transitions (FSM)
 - [x] Авто-статус `DOCS_REQUESTED` ↔ `READY_TO_SUBMIT` по наличию required docs (pre-submit зона)
 - [x] Логирование статусов через events (`claim_events`)
+- [x] Action endpoint `submit`
+- [x] Action endpoint `follow-up`
+- [x] Action endpoint `approve`
+- [x] Action endpoint `reject`
+- [x] Action endpoint `paid`
+- [ ] Action endpoint `closed`
 - [ ] Автоматические follow-up по времени (scheduler/queue)
 - [ ] Escalated (как отдельный статус + правила/таймеры)
 
@@ -61,6 +68,7 @@
 - [ ] Email-уведомления
 - [ ] Telegram/WhatsApp/push
 - [ ] Полуавтоматическая/автоматическая отправка претензий
+- [x] Генерация claim letter через API (`GET /api/claims/{id}/letter`)
 
 ## 7) Content / SEO Layer
 - [ ] SEO-страницы
@@ -81,7 +89,15 @@
 - [x] Единая конвенция DTO: `dto.request` / `dto.response`
 - [x] MapStruct (ModelMapper удалён)
 - [x] Controller возвращает объект (без `ResponseEntity`)
-- [x] Тесты: unit + web layer + integration (Testcontainers Postgres)
+- [x] Тесты: integration + web scenarios на core flow
 - [x] Миграции Flyway/Liquibase (вместо `ddl-auto`)
+- [x] Единый формат `claim_events.payload`
+- [x] Обработка validation errors через `GlobalExceptionHandler`
 - [ ] Auth/JWT + привязка claims к текущему пользователю (не через `userId`)
 
+## Next Focus
+- [ ] Add `closed` action (`REJECTED -> CLOSED`, `PAID -> CLOSED`)
+- [ ] Decide whether to keep `PATCH /api/claims/{id}/update` or switch to `PATCH /api/claims/{id}`
+- [ ] Add event assertions for action-based workflow tests
+- [ ] Real document upload/storage
+- [ ] Email sending for claim letters / follow-ups

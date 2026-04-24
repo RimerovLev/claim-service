@@ -161,8 +161,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         claimEvents.setClaim(claim);
         claimEvents.setType(EventTypes.STATUS_CHANGED);
 
-        String safeNote = Optional.ofNullable(request.getNote()).orElse("");
-        String payload = "{\"from\":\"" + claim.getStatus() + "\",\"to\":\"" + newStatus + "\",\"note\":\"" + safeNote + "\"}";
+        String payload = buildTransitionPayload(claim.getStatus(), newStatus, request.getNote());
         claimEvents.setPayload(payload);
 
         claim.setStatus(newStatus);
@@ -232,8 +231,15 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     }
 
     @Override
-    public ClaimResponse paidClaim(Long id, PaidClaimRequest request) {
+    @Transactional
+    public ClaimResponse markClaimAsPaid(Long id, PaidClaimRequest request) {
         return moveClaimEvent(id, ClaimStatus.PAID, EventTypes.CLAIM_PAID, request == null ? null : request.getNote());
+    }
+
+    @Override
+    @Transactional
+    public ClaimResponse closeClaim(Long id, CloseClaimRequest request) {
+        return moveClaimEvent(id, ClaimStatus.CLOSED, EventTypes.CLAIM_CLOSED, request == null ? null : request.getNote());
     }
 
     private void recalcDerivedFields(Claim claim) {
@@ -265,10 +271,18 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         ClaimEvents claimEvents = new ClaimEvents();
         claimEvents.setClaim(claim);
         claimEvents.setType(type);
-        claimEvents.setPayload(note == null ? "" : note);
+        ClaimStatus fromStatus = claim.getStatus();
+        claimEvents.setPayload(buildTransitionPayload(fromStatus, targetStatus, note));
         claim.setStatus(targetStatus);
         claimRepository.save(claim);
         eventsRepository.save(claimEvents);
         return claimMapper.toResponse(claim);
+    }
+
+    private String buildTransitionPayload(ClaimStatus from, ClaimStatus to, String note) {
+        String safeNote = Optional.ofNullable(note).orElse("");
+        String escapedNote = safeNote.replace("\\", "\\\\").replace("\"", "\\\"");
+        String payload = "{\"from\":\"" + from + "\",\"to\":\"" + to + "\",\"note\":\"" + escapedNote + "\"}";
+        return payload;
     }
 }

@@ -19,5 +19,6 @@ public interface ClaimService {
     ClaimResponse sendFollowUp(Long id, FollowUpRequest request);
     ClaimResponse approveClaim(Long id, ApproveClaimRequest request);
     ClaimResponse rejectClaim(Long id, RejectClaimRequest request);
-    ClaimResponse paidClaim(Long id, PaidClaimRequest request);
+    ClaimResponse markClaimAsPaid(Long id, PaidClaimRequest request);
+    ClaimResponse closeClaim(Long id, CloseClaimRequest request);
 }

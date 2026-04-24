@@ -59,7 +59,7 @@ public class ClaimController {
     }
 
     @PostMapping("/{id}/follow-up")
-    public ClaimResponse sentFollowUp(@PathVariable Long id, @RequestBody FollowUpRequest request){
+    public ClaimResponse sendFollowUp(@PathVariable Long id, @RequestBody FollowUpRequest request){
         return claimService.sendFollowUp(id, request);
     }
 
@@ -75,7 +75,12 @@ public class ClaimController {
 
     @PostMapping("/{id}/paid")
     public ClaimResponse paidClaim(@PathVariable Long id, @RequestBody PaidClaimRequest request){
-        return claimService.paidClaim(id, request);
+        return claimService.markClaimAsPaid(id, request);
+    }
+
+    @PostMapping("/{id}/close")
+    public ClaimResponse closeClaim(@PathVariable Long id, @RequestBody CloseClaimRequest request){
+        return claimService.closeClaim(id, request);
     }
 
 }
