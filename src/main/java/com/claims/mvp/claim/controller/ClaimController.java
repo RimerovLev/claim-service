@@ -1,8 +1,6 @@
 package com.claims.mvp.claim.controller;
 
-import com.claims.mvp.claim.dto.request.CreateClaimRequest;
-import com.claims.mvp.claim.dto.request.StatusChangeRequest;
-import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
+import com.claims.mvp.claim.dto.request.*;
 import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.claim.service.ClaimService;
@@ -54,4 +52,30 @@ public class ClaimController {
     public LetterResponse getClaimLetter(@PathVariable Long id) {
         return claimService.getClaimLetter(id);
     }
+
+    @PostMapping("/{id}/submit")
+    public ClaimResponse submitClaim(@PathVariable Long id, @RequestBody(required = false) SubmitClaimRequest request) {
+        return claimService.submitClaim(id, request);
+    }
+
+    @PostMapping("/{id}/follow-up")
+    public ClaimResponse sentFollowUp(@PathVariable Long id, @RequestBody FollowUpRequest request){
+        return claimService.sendFollowUp(id, request);
+    }
+
+    @PostMapping("/{id}/approve")
+    public ClaimResponse approveClaim(@PathVariable Long id, @RequestBody ApproveClaimRequest request){
+        return claimService.approveClaim(id, request);
+    }
+
+    @PostMapping("/{id}/reject")
+    public ClaimResponse rejectClaim(@PathVariable Long id, @RequestBody RejectClaimRequest request){
+        return claimService.rejectClaim(id, request);
+    }
+
+    @PostMapping("/{id}/paid")
+    public ClaimResponse paidClaim(@PathVariable Long id, @RequestBody PaidClaimRequest request){
+        return claimService.paidClaim(id, request);
+    }
+
 }

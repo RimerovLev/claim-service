@@ -1,8 +1,6 @@
 package com.claims.mvp.claim.service;
 
-import com.claims.mvp.claim.dto.request.CreateClaimRequest;
-import com.claims.mvp.claim.dto.request.StatusChangeRequest;
-import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
+import com.claims.mvp.claim.dto.request.*;
 import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.events.dto.response.EventsResponse;
@@ -17,4 +15,9 @@ public interface ClaimService {
     ClaimResponse updateClaimStatus(Long id, StatusChangeRequest request);
     List<EventsResponse> getClaimEvents(Long id);
     LetterResponse getClaimLetter(Long id);
+    ClaimResponse submitClaim(Long id, SubmitClaimRequest request);
+    ClaimResponse sendFollowUp(Long id, FollowUpRequest request);
+    ClaimResponse approveClaim(Long id, ApproveClaimRequest request);
+    ClaimResponse rejectClaim(Long id, RejectClaimRequest request);
+    ClaimResponse paidClaim(Long id, PaidClaimRequest request);
 }

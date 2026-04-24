@@ -1,12 +1,10 @@
 package com.claims.mvp.claim.service.lifecycle;
 
 import com.claims.mvp.claim.dao.ClaimRepository;
+import com.claims.mvp.claim.dto.request.*;
 import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.claim.mapper.ClaimEntityMapper;
 import com.claims.mvp.claim.mapper.ClaimMapper;
-import com.claims.mvp.claim.dto.request.CreateClaimRequest;
-import com.claims.mvp.claim.dto.request.StatusChangeRequest;
-import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
 import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.enums.DocumentTypes;
@@ -209,6 +207,35 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         return claimLetterService.generateLetter(claim);
     }
 
+    @Override
+    @Transactional
+    public ClaimResponse submitClaim(Long id, SubmitClaimRequest request) {
+        return moveClaimEvent(id, ClaimStatus.SUBMITTED, EventTypes.LETTER_SUBMITTED, request == null ? null : request.getNote());
+    }
+
+    @Override
+    @Transactional
+    public ClaimResponse sendFollowUp(Long id, FollowUpRequest request) {
+        return moveClaimEvent(id, ClaimStatus.FOLLOW_UP_SENT, EventTypes.FOLLOW_UP_SENT, request == null ? null : request.getNote());
+    }
+
+    @Override
+    @Transactional
+    public ClaimResponse approveClaim(Long id, ApproveClaimRequest request) {
+        return moveClaimEvent(id, ClaimStatus.APPROVED, EventTypes.CLAIM_APPROVED, request == null ? null : request.getNote());
+    }
+
+    @Override
+    @Transactional
+    public ClaimResponse rejectClaim(Long id, RejectClaimRequest request) {
+        return moveClaimEvent(id, ClaimStatus.REJECTED, EventTypes.CLAIM_REJECTED, request == null ? null : request.getNote());
+    }
+
+    @Override
+    public ClaimResponse paidClaim(Long id, PaidClaimRequest request) {
+        return moveClaimEvent(id, ClaimStatus.PAID, EventTypes.CLAIM_PAID, request == null ? null : request.getNote());
+    }
+
     private void recalcDerivedFields(Claim claim) {
         // Centralized recalculation of derived fields to keep create/update consistent:
         // - eligibilityService decides eligible/compensation and which documents are required
@@ -229,5 +256,19 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
 
         boolean hasAllRequired = uploaded.containsAll(required);
         claim.setStatus(workflowService.autoPreSubmitStatus(claim.getStatus(), hasAllRequired));
+    }
+
+    private ClaimResponse moveClaimEvent(Long id,ClaimStatus targetStatus, EventTypes type, String note) {
+        Claim claim = claimRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        workflowService.assertTransitionAllowed(claim.getStatus(), targetStatus);
+        ClaimEvents claimEvents = new ClaimEvents();
+        claimEvents.setClaim(claim);
+        claimEvents.setType(type);
+        claimEvents.setPayload(note == null ? "" : note);
+        claim.setStatus(targetStatus);
+        claimRepository.save(claim);
+        eventsRepository.save(claimEvents);
+        return claimMapper.toResponse(claim);
     }
 }

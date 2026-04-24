@@ -1,13 +1,8 @@
 package com.claims.mvp;
 
-import com.claims.mvp.claim.dto.request.BoardingDocumentRequest;
-import com.claims.mvp.claim.dto.request.CreateClaimRequest;
-import com.claims.mvp.claim.dto.request.EuContextRequest;
-import com.claims.mvp.claim.dto.request.FlightRequest;
-import com.claims.mvp.claim.dto.request.IssueRequest;
-import com.claims.mvp.claim.dto.request.StatusChangeRequest;
-import com.claims.mvp.claim.dto.request.UpdateClaimDetailsRequest;
+import com.claims.mvp.claim.dto.request.*;
 import com.claims.mvp.claim.dto.response.ClaimResponse;
+import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.enums.DocumentTypes;
 import com.claims.mvp.claim.enums.IssueType;
@@ -149,7 +144,8 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         List<EventsResponse> events = client().get()
                 .uri("/api/claims/" + created.getId() + "/events")
                 .retrieve()
-                .body(new ParameterizedTypeReference<>() {});
+                .body(new ParameterizedTypeReference<>() {
+                });
 
         assertThat(updatedStatus).isNotNull();
         assertThat(updatedStatus.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
@@ -268,4 +264,112 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         document.setUrl("https://example.test/" + id);
         return document;
     }
+
+    @Test
+    void getClaimLetter_existingClaim_returnSubjectAndBody() {
+        UserResponse user = createUser("Letter User", "letter-user@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of());
+
+        ClaimResponse creaated = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(creaated).isNotNull();
+        assertThat(creaated.getId()).isNotNull();
+
+        LetterResponse letter = client().get()
+                .uri("/api/claims/" + creaated.getId() + "/letter")
+                .retrieve()
+                .body(LetterResponse.class);
+
+        assertThat(letter).isNotNull();
+        assertThat(letter.getSubject()).isNotBlank();
+        assertThat(letter.getBody()).isNotBlank();
+        assertThat(letter.getSubject()).contains("LH123");
+        assertThat(letter.getBody()).contains("Letter User");
+        assertThat(letter.getBody()).contains("ABC123");
+        assertThat(letter.getBody()).contains("FRA");
+        assertThat(letter.getBody()).contains("MAD");
+        assertThat(letter.getBody()).contains("220");
+    }
+
+    @Test
+    void submitClaim_readyToSubmit_setsSubmittedStatus() {
+        UserResponse user = createUser("Submit User", "submit-user@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("submit-ticket-1", DocumentTypes.TICKET),
+                buildDocument("submit-boarding-1", DocumentTypes.BOARDING_PASS)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+
+        SubmitClaimRequest submitRequest = new SubmitClaimRequest();
+        submitRequest.setNote("submitted via email");
+
+        ClaimResponse submitted = client().post()
+                .uri("/api/claims/" + created.getId() + "/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(submitRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(submitted).isNotNull();
+        assertThat(submitted.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+    }
+    @Test
+    void submitClaim_docsRequested_returns409() {
+        UserResponse user = createUser("Submit Blocked", "submit-blocked@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of());
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.DOCS_REQUESTED);
+
+        SubmitClaimRequest submitRequest = new SubmitClaimRequest();
+        submitRequest.setNote("trying to submit too early");
+
+        int status = client().post()
+                .uri("/api/claims/" + created.getId() + "/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(submitRequest)
+                .exchange((req, res) -> res.getStatusCode().value());
+
+        assertThat(status).isEqualTo(409);
+    }
+
 }

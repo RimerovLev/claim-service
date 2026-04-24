@@ -8,7 +8,7 @@ create table users
 
 create table claims
 (
-    id                  bigseral primary key,
+    id                  bigserial primary key,
     user_id             bigint      not null references users (id),
     status              varchar(64) not null,
     eligible            boolean,
@@ -24,17 +24,26 @@ create table flights
     flight_date   date        not null,
     route_from    varchar(8)  not null,
     route_to      varchar(8)  not null,
-    airline       varchar(64) not null,
+    airline       varchar(255) not null,
+    booking_ref   varchar(64) not null,
     distance_km   integer     not null
 );
 
-create table issue
+create table eu_context
+(
+    id                bigserial primary key,
+    claim_id          bigint      not null unique references claims (id) on delete cascade,
+    departure_from_eu boolean     not null,
+    eu_carrier        boolean     not null
+);
+
+create table issues
 (
     id                          bigserial primary key,
-    claim_id                    bigint      not null references claims (id) on delete cascade,
+    claim_id                    bigint      not null unique references claims (id) on delete cascade,
     type                        varchar(64) not null,
     delay_minutes               integer,
-    cancelation_notice_days     integer,
+    cancellation_notice_days    integer,
     extraordinary_circumstances boolean     not null
 );
 
