@@ -66,6 +66,12 @@ class ClaimServiceImplTest {
     @Mock
     private EventsRepository eventsRepository;
 
+    @Mock
+    private com.claims.mvp.claim.dao.BoardingDocumentsRepository boardingDocumentsRepository;
+
+    @Mock
+    private com.claims.mvp.claim.mapper.DocumentMapper documentMapper;
+
     private ClaimService service;
 
     @BeforeEach

@@ -1,6 +1,6 @@
 # Claims MVP — Progress Checklist
 
-Дата: 2026-04-24  
+Дата: 2026-04-27  
 Проект: `claims-mvp`  
 
 Легенда:
@@ -12,7 +12,9 @@
 - [x] Форма создания кейса (`POST /api/claims`)
 - [~] Выбор типа проблемы (есть: `DELAY`, `CANCELLATION`; нет: missed connection / baggage cases)
 - [x] Ввод данных рейса и бронирования (flight + bookingRef)
-- [~] Загрузка подтверждающих документов (есть `type + url`, нет реального upload/storage)
+- [~] Загрузка подтверждающих документов
+- [~] Есть `type + url` в claim payload (API update)
+- [~] Есть реальный upload/download (multipart + local FS storage), но пока без S3/secure storage
 - [x] Базовая проверка права на компенсацию (rule-based для delay/cancellation + EU scope + extraordinary)
 - [x] Генерация претензии / обращения
 - [ ] Отправка пользователю готового письма или авто-отправка
@@ -54,7 +56,7 @@
 - [x] Action endpoint `approve`
 - [x] Action endpoint `reject`
 - [x] Action endpoint `paid`
-- [ ] Action endpoint `closed`
+- [x] Action endpoint `closed`
 - [ ] Автоматические follow-up по времени (scheduler/queue)
 - [ ] Escalated (как отдельный статус + правила/таймеры)
 
@@ -89,15 +91,15 @@
 - [x] Единая конвенция DTO: `dto.request` / `dto.response`
 - [x] MapStruct (ModelMapper удалён)
 - [x] Controller возвращает объект (без `ResponseEntity`)
-- [x] Тесты: integration + web scenarios на core flow
+- [x] Тесты: integration + controller slice (web)
 - [x] Миграции Flyway/Liquibase (вместо `ddl-auto`)
 - [x] Единый формат `claim_events.payload`
 - [x] Обработка validation errors через `GlobalExceptionHandler`
 - [ ] Auth/JWT + привязка claims к текущему пользователю (не через `userId`)
 
 ## Next Focus
-- [ ] Add `closed` action (`REJECTED -> CLOSED`, `PAID -> CLOSED`)
 - [ ] Decide whether to keep `PATCH /api/claims/{id}/update` or switch to `PATCH /api/claims/{id}`
 - [ ] Add event assertions for action-based workflow tests
-- [ ] Real document upload/storage
+- [~] Real document upload/storage (local FS)
+- [ ] Storage (S3/MinIO) + secure access
 - [ ] Email sending for claim letters / follow-ups
