@@ -1,8 +1,6 @@
 package com.claims.mvp.claim.controller;
 
-import com.claims.mvp.claim.dto.request.CloseClaimRequest;
 import com.claims.mvp.claim.dto.request.CreateClaimRequest;
-import com.claims.mvp.claim.dto.request.SubmitClaimRequest;
 import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.service.ClaimService;
@@ -14,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.claims.mvp.claim.dto.request.StatusChangeRequest;
+import com.claims.mvp.claim.enums.ClaimStatus;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -93,19 +93,20 @@ class ClaimControllerTest {
         response.setId(11L);
         response.setStatus(ClaimStatus.SUBMITTED);
 
-        when(claimService.submitClaim(eq(11L), any(SubmitClaimRequest.class))).thenReturn(response);
+        when(claimService.transition(eq(11L), any(StatusChangeRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/claims/11/submit")
+        mockMvc.perform(post("/api/claims/11/transition")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "status": "SUBMITTED",
                                   "note": "submitted via email"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
 
-        verify(claimService).submitClaim(eq(11L), any(SubmitClaimRequest.class));
+        verify(claimService).transition(eq(11L), any(StatusChangeRequest.class));
     }
 
     @Test
@@ -114,19 +115,20 @@ class ClaimControllerTest {
         response.setId(12L);
         response.setStatus(ClaimStatus.CLOSED);
 
-        when(claimService.closeClaim(eq(12L), any(CloseClaimRequest.class))).thenReturn(response);
+        when(claimService.transition(eq(12L), any(StatusChangeRequest.class))).thenReturn(response);
 
-        mockMvc.perform(post("/api/claims/12/close")
+        mockMvc.perform(post("/api/claims/12/transition")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "status": "CLOSED",
                                   "note": "claim completed"
                                 }
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("CLOSED"));
 
-        verify(claimService).closeClaim(eq(12L), any(CloseClaimRequest.class));
+        verify(claimService).transition(eq(12L), any(StatusChangeRequest.class));
     }
 
     @Test

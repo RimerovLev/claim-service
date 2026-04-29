@@ -31,7 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
- macOS
+
+### macOS ###
 .DS_Store
 
 # IntelliJ
@@ -49,3 +50,9 @@ build/
 
 src/main/resources/application-local.properties
 src/main/resources/application.properties
+
+# Uploaded files (runtime storage, not source code)
+uploads/
+
+# Claude Code personal settings
+.claude/settings.local.json

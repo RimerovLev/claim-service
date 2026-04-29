@@ -15,7 +15,6 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
-
 import java.time.LocalDate;
 import java.util.List;
 
@@ -135,7 +134,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .body(ClaimResponse.class);
 
         ClaimResponse updatedStatus = client().post()
-                .uri("/api/claims/" + created.getId() + "/status")
+                .uri("/api/claims/" + created.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new StatusChangeRequest(ClaimStatus.SUBMITTED, "sent via email"))
                 .retrieve()
@@ -173,7 +172,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .body(ClaimResponse.class);
 
         int status = client().post()
-                .uri("/api/claims/" + created.getId() + "/status")
+                .uri("/api/claims/" + created.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new StatusChangeRequest(ClaimStatus.PAID, "skip workflow"))
                 .exchange((req, res) -> res.getStatusCode().value());
@@ -236,14 +235,14 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .retrieve()
                 .body(ClaimResponse.class);
 
-        List<ClaimResponse> claims = client().get()
+        PageDto<ClaimResponse> pageDto = client().get()
                 .uri("/api/claims")
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {
                 });
 
-        assertThat(claims).isNotNull();
-        assertThat(claims).isNotEmpty();
+        assertThat(pageDto).isNotNull();
+        assertThat(pageDto.content).isNotEmpty();
     }
 
     @Test
@@ -413,11 +412,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(created).isNotNull();
         assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
 
-        SubmitClaimRequest submitRequest = new SubmitClaimRequest();
-        submitRequest.setNote("submitted via email");
+        StatusChangeRequest submitRequest = new StatusChangeRequest(ClaimStatus.SUBMITTED, "submitted via email");
 
         ClaimResponse submitted = client().post()
-                .uri("/api/claims/" + created.getId() + "/submit")
+                .uri("/api/claims/" + created.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(submitRequest)
                 .retrieve()
@@ -448,11 +446,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(created).isNotNull();
         assertThat(created.getStatus()).isEqualTo(ClaimStatus.DOCS_REQUESTED);
 
-        SubmitClaimRequest submitRequest = new SubmitClaimRequest();
-        submitRequest.setNote("trying to submit too early");
+        StatusChangeRequest submitRequest = new StatusChangeRequest(ClaimStatus.SUBMITTED, "trying to submit too early");
 
         int status = client().post()
-                .uri("/api/claims/" + created.getId() + "/submit")
+                .uri("/api/claims/" + created.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(submitRequest)
                 .exchange((req, res) -> res.getStatusCode().value());
@@ -467,11 +464,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         ClaimResponse created = createReadyToSubmitClaim(user, "follow-up");
         ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
 
-        FollowUpRequest followUpRequest = new FollowUpRequest();
-        followUpRequest.setNote("second reminder sent");
+        StatusChangeRequest followUpRequest = new StatusChangeRequest(ClaimStatus.FOLLOW_UP_SENT, "second reminder sent");
 
         ClaimResponse followedUp = client().post()
-                .uri("/api/claims/" + submitted.getId() + "/follow-up")
+                .uri("/api/claims/" + submitted.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(followUpRequest)
                 .retrieve()
@@ -489,11 +485,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
         ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
 
-        ApproveClaimRequest approveRequest = new ApproveClaimRequest();
-        approveRequest.setNote("approved via email");
+        StatusChangeRequest approveRequest = new StatusChangeRequest(ClaimStatus.APPROVED, "approved via email");
 
         ClaimResponse approved = client().post()
-                .uri("/api/claims/" + followedUp.getId() + "/approve")
+                .uri("/api/claims/" + followedUp.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(approveRequest)
                 .retrieve()
@@ -511,11 +506,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
         ClaimResponse approved = approveClaim(followedUp.getId(), "approved by airline");
 
-        PaidClaimRequest paidRequest = new PaidClaimRequest();
-        paidRequest.setNote("compensation received");
+        StatusChangeRequest paidRequest = new StatusChangeRequest(ClaimStatus.PAID, "compensation received");
 
         ClaimResponse paid = client().post()
-                .uri("/api/claims/" + approved.getId() + "/paid")
+                .uri("/api/claims/" + approved.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(paidRequest)
                 .retrieve()
@@ -532,11 +526,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(created).isNotNull();
         assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
 
-        ApproveClaimRequest approveRequest = new ApproveClaimRequest();
-        approveRequest.setNote("trying to approve too early");
+        StatusChangeRequest approveRequest = new StatusChangeRequest(ClaimStatus.APPROVED, "trying to approve too early");
 
         int status = client().post()
-                .uri("/api/claims/" + created.getId() + "/approve")
+                .uri("/api/claims/" + created.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(approveRequest)
                 .exchange((req, res) -> res.getStatusCode().value());
@@ -553,11 +546,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         ClaimResponse submitted = submitClaim(created.getId(), "submitted via email");
         ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent after no response");
 
-        RejectClaimRequest rejectRequest = new RejectClaimRequest();
-        rejectRequest.setNote("airline rejected the claim");
+        StatusChangeRequest rejectRequest = new StatusChangeRequest(ClaimStatus.REJECTED, "airline rejected the claim");
 
         ClaimResponse rejected = client().post()
-                .uri("/api/claims/" + created.getId() + "/reject")
+                .uri("/api/claims/" + created.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(rejectRequest)
                 .retrieve()
@@ -577,11 +569,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         ClaimResponse approved = approveClaim(followedUp.getId(), "approved");
         ClaimResponse paid = markClaimAsPaid(approved.getId(), "paid");
 
-        CloseClaimRequest closeRequest = new CloseClaimRequest();
-        closeRequest.setNote("claim completed");
+        StatusChangeRequest closeRequest = new StatusChangeRequest(ClaimStatus.CLOSED, "claim completed");
 
         ClaimResponse closed = client().post()
-                .uri("/api/claims/" + paid.getId() + "/close")
+                .uri("/api/claims/" + paid.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(closeRequest)
                 .retrieve()
@@ -600,11 +591,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
         ClaimResponse rejected = rejectClaim(followedUp.getId(), "rejected");
 
-        CloseClaimRequest closeRequest = new CloseClaimRequest();
-        closeRequest.setNote("claim archived");
+        StatusChangeRequest closeRequest = new StatusChangeRequest(ClaimStatus.CLOSED, "claim archived");
 
         ClaimResponse closed = client().post()
-                .uri("/api/claims/" + rejected.getId() + "/close")
+                .uri("/api/claims/" + rejected.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(closeRequest)
                 .retrieve()
@@ -623,11 +613,10 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         ClaimResponse followedUp = sendFollowUp(submitted.getId(), "follow-up sent");
         ClaimResponse approved = approveClaim(followedUp.getId(), "approved");
 
-        CloseClaimRequest closeRequest = new CloseClaimRequest();
-        closeRequest.setNote("trying to close too early");
+        StatusChangeRequest closeRequest = new StatusChangeRequest(ClaimStatus.CLOSED, "trying to close too early");
 
         int status = client().post()
-                .uri("/api/claims/" + approved.getId() + "/close")
+                .uri("/api/claims/" + approved.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(closeRequest)
                 .exchange((req, res) -> res.getStatusCode().value());
@@ -658,88 +647,51 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         return created;
     }
 
-    private ClaimResponse submitClaim(Long id, String note) {
-        SubmitClaimRequest request = new SubmitClaimRequest();
-        request.setNote(note);
+    private ClaimResponse transitionClaim(Long id, ClaimStatus target, String note) {
+        StatusChangeRequest request = new StatusChangeRequest(target, note);
 
         ClaimResponse response = client().post()
-                .uri("/api/claims/" + id + "/submit")
+                .uri("/api/claims/" + id + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .retrieve()
                 .body(ClaimResponse.class);
 
         assertThat(response).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(response.getStatus()).isEqualTo(target);
         return response;
+    }
+
+    private ClaimResponse submitClaim(Long id, String note) {
+        return transitionClaim(id, ClaimStatus.SUBMITTED, note);
     }
 
     private ClaimResponse sendFollowUp(Long id, String note) {
-        FollowUpRequest request = new FollowUpRequest();
-        request.setNote(note);
-
-        ClaimResponse response = client().post()
-                .uri("/api/claims/" + id + "/follow-up")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(ClaimResponse.class);
-
-        assertThat(response).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(ClaimStatus.FOLLOW_UP_SENT);
-        return response;
+        return transitionClaim(id, ClaimStatus.FOLLOW_UP_SENT, note);
     }
 
     private ClaimResponse approveClaim(Long id, String note) {
-        ApproveClaimRequest request = new ApproveClaimRequest();
-        request.setNote(note);
-
-        ClaimResponse response = client().post()
-                .uri("/api/claims/" + id + "/approve")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(ClaimResponse.class);
-
-        assertThat(response).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(ClaimStatus.APPROVED);
-        return response;
+        return transitionClaim(id, ClaimStatus.APPROVED, note);
     }
 
     private ClaimResponse rejectClaim(Long id, String note) {
-        RejectClaimRequest request = new RejectClaimRequest();
-        request.setNote(note);
-
-        ClaimResponse response = client().post()
-                .uri("/api/claims/" + id + "/reject")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(ClaimResponse.class);
-
-        assertThat(response).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(ClaimStatus.REJECTED);
-        return response;
+        return transitionClaim(id, ClaimStatus.REJECTED, note);
     }
 
     private ClaimResponse markClaimAsPaid(Long id, String note) {
-        PaidClaimRequest request = new PaidClaimRequest();
-        request.setNote(note);
-
-        ClaimResponse response = client().post()
-                .uri("/api/claims/" + id + "/paid")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .body(ClaimResponse.class);
-
-        assertThat(response).isNotNull();
-        assertThat(response.getStatus()).isEqualTo(ClaimStatus.PAID);
-        return response;
+        return transitionClaim(id, ClaimStatus.PAID, note);
     }
 
     private record ErrorResponse(String message) {
     }
+
+    private record PageDto<T>(
+            List<T> content,
+            int totalPages,
+            long totalElements,
+            int number,
+            int size
+    ){}
 
 
 }

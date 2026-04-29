@@ -7,13 +7,13 @@ import com.claims.mvp.claim.dto.response.DocumentResponse;
 import com.claims.mvp.claim.mapper.DocumentMapper;
 import com.claims.mvp.claim.model.BoardingDocuments;
 import com.claims.mvp.claim.model.Claim;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -46,21 +46,20 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
     private static final Set<String> ALLOWED_MIME_TYPES = Set.of(
             "application/pdf",
             "image/jpeg",
-            "image/png",
-            "image/jpg"
+            "image/png"
     );
 
     @Override
     @Transactional
     public DocumentResponse uploadDocument(DocumentUploadRequest request) throws IOException {
-        validateFile(request.getFile());
+        String detectedMimeType = validateFile(request.getFile());
         Claim claim = claimRepository.findById(request.getClaimId())
                 .orElseThrow(() -> new IllegalArgumentException("Claim not found with id: " + request.getClaimId()));
 
         Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
         Files.createDirectories(uploadPath);
 
-        String fileName = generateUniqueFileName(request.getFile().getContentType());
+        String fileName = generateUniqueFileName(detectedMimeType);
         Path filePath = uploadPath.resolve(fileName);
 
         BoardingDocuments document = new BoardingDocuments();
@@ -70,19 +69,30 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
         document.setUrl("/api/documents/" + document.getId());
         document.setFileName(request.getFile().getOriginalFilename());
         document.setFileSize(request.getFile().getSize());
-        document.setMimeType(request.getFile().getContentType());
+        document.setMimeType(detectedMimeType);
         document.setDescription(request.getDescription());
         document.setStorageKey(fileName);
         document.setUploadedAt(OffsetDateTime.now());
 
         claim.getDocuments().add(document);
 
+        // Persist file then flush JPA in the same try:
+// - file written to disk first
+// - saveAndFlush forces the SQL INSERT here, so DB errors land in this catch
+//   instead of escaping at transaction commit
+// - on any failure (IO from transferTo, or DB from saveAndFlush) we remove
+//   the file so we don't leave orphans on disk
+// - IOException is rethrown as-is to preserve the method's contract;
+//   any other (DB) exception is wrapped into IOException
         try {
             request.getFile().transferTo(filePath.toFile());
-            claimRepository.save(claim);
-        } catch (IOException e) {
+            claimRepository.saveAndFlush(claim);
+        } catch (Exception e) {
             Files.deleteIfExists(filePath);
             log.error("Failed to save file: {}", fileName, e);
+            if (e instanceof IOException io) {
+                throw io;
+            }
             throw new IOException("Failed to save file: " + fileName, e);
         }
 
@@ -141,7 +151,7 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
     }
 
     @Override
-    public void validateFile(MultipartFile file) throws IOException {
+    public String validateFile(MultipartFile file) throws IOException {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("File must not be empty");
         }
@@ -152,6 +162,7 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
         if (!ALLOWED_MIME_TYPES.contains(contentType)) {
             throw new IllegalArgumentException("File must be a PDF, JPG or PNG");
         }
+        return contentType;
     }
 
     private String detectMimeType(MultipartFile file) throws IOException {
@@ -182,7 +193,7 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
     private String generateUniqueFileName(String contentType) {
         String extension = switch (contentType) {
             case "application/pdf" -> ".pdf";
-            case "image/jpeg", "image/jpg" -> ".jpg";
+            case "image/jpeg" -> ".jpeg";
             case "image/png" -> ".png";
             default -> throw new IllegalArgumentException("Unsupported MIME type: " + contentType);
         };

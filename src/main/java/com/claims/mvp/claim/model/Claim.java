@@ -22,7 +22,7 @@ public class Claim {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -39,13 +39,13 @@ public class Claim {
     @OneToOne(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private EuContext euContext;
 
-    @OneToMany(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(fetch = FetchType.LAZY, mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<BoardingDocuments> documents;
 
     @OneToOne(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private Issue issue;
 
-    @OneToMany(mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(fetch = FetchType.LAZY, mappedBy = "claim", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClaimEvents> events;
 
     @PrePersist

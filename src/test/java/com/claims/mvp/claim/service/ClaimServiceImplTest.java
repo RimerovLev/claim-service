@@ -29,6 +29,7 @@ import com.claims.mvp.claim.service.letter.ClaimLetterServiceImpl;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowServiceImpl;
 import com.claims.mvp.events.dao.EventsRepository;
+import tools.jackson.databind.ObjectMapper;
 import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.dao.UserRepository;
 import com.claims.mvp.user.model.User;
@@ -93,7 +94,8 @@ class ClaimServiceImplTest {
                 eventsRepository,
                 entityMapper,
                 claimMapper,
-                letterService
+                letterService,
+                new ObjectMapper()
         );
         lenient().when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(eventsRepository.save(any(ClaimEvents.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -126,7 +128,7 @@ class ClaimServiceImplTest {
     @Test
     void updateClaimDetails_whenMissingDocumentsUploaded_promotesToReadyToSubmit() {
         Claim claim = existingClaim(ClaimStatus.DOCS_REQUESTED, List.of());
-        when(claimRepository.findById(7L)).thenReturn(Optional.of(claim));
+        when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
 
         UpdateClaimDetailsRequest request = new UpdateClaimDetailsRequest();
         request.setDocuments(List.of(
@@ -146,18 +148,18 @@ class ClaimServiceImplTest {
                 boardingDocument("ticket-1", DocumentTypes.TICKET),
                 boardingDocument("boarding-pass-1", DocumentTypes.BOARDING_PASS)
         ));
-        when(claimRepository.findById(7L)).thenReturn(Optional.of(claim));
+        when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
 
         StatusChangeRequest request = new StatusChangeRequest(ClaimStatus.SUBMITTED, "sent via email");
 
-        var response = service.updateClaimStatus(7L, request);
+        var response = service.transition(7L, request);
 
         assertThat(response.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
 
         ArgumentCaptor<ClaimEvents> eventCaptor = ArgumentCaptor.forClass(ClaimEvents.class);
         verify(eventsRepository).save(eventCaptor.capture());
         ClaimEvents savedEvent = eventCaptor.getValue();
-        assertThat(savedEvent.getType()).isEqualTo(EventTypes.STATUS_CHANGED);
+        assertThat(savedEvent.getType()).isEqualTo(EventTypes.LETTER_SUBMITTED);
         assertThat(savedEvent.getPayload()).contains("\"from\":\"READY_TO_SUBMIT\"");
         assertThat(savedEvent.getPayload()).contains("\"to\":\"SUBMITTED\"");
     }
@@ -165,10 +167,10 @@ class ClaimServiceImplTest {
     @Test
     void updateClaimStatus_invalidTransition_throwsAndDoesNotSaveEvent() {
         Claim claim = existingClaim(ClaimStatus.NEW, List.of());
-        when(claimRepository.findById(7L)).thenReturn(Optional.of(claim));
+        when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
 
-        assertThatThrownBy(() -> service.updateClaimStatus(7L, new StatusChangeRequest(ClaimStatus.PAID, "skip")) )
-                .isInstanceOf(IllegalArgumentException.class)
+        assertThatThrownBy(() -> service.transition(7L, new StatusChangeRequest(ClaimStatus.PAID, "skip")) )
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Transition from NEW to PAID");
 
         verify(claimRepository, never()).save(any(Claim.class));

@@ -10,8 +10,6 @@ import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-
-@Service
 /**
  * EligibilityService.
  *
@@ -22,6 +20,8 @@ import java.util.List;
  *
  * This service does not change claim status and does not persist anything — it only returns a result.
  */
+@Service
+
 public class EligibilityServiceImpl implements EligibilityService{
 
     @Override

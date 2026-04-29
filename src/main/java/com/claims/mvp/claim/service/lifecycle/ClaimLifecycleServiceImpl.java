@@ -23,8 +23,13 @@ import com.claims.mvp.user.dao.UserRepository;
 import com.claims.mvp.user.model.User;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+
+import java.util.Map;
 
 import java.util.HashSet;
 import java.util.List;
@@ -32,19 +37,20 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@RequiredArgsConstructor
-@Service
 /**
  * ClaimLifecycleService (application/orchestrator layer).
- *
+ * <p>
  * Owns the claim "lifecycle" from the API perspective:
- * - createClaim / updateClaimDetails / updateClaimStatus
- * - persisting Claim and related entities
+ * - createClaim / updateClaimDetails / transition
+ * * - persisting Claim and related entities
  * - writing events (ClaimEvents)
- *
+ * <p>
  * Rule of thumb: this service orchestrates other services and repositories,
  * while delegating "pure" rules (workflow, documents, eligibility) to dedicated components.
  */
+@RequiredArgsConstructor
+@Service
+
 public class ClaimLifecycleServiceImpl implements ClaimService {
     private final ClaimRepository claimRepository;
     private final UserRepository userRepository;
@@ -55,6 +61,8 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     private final ClaimEntityMapper claimEntityMapper;
     private final ClaimMapper claimMapper;
     private final ClaimLetterService claimLetterService;
+    private final ObjectMapper objectMapper;
+
 
     @Override
     @Transactional
@@ -94,8 +102,11 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     public ClaimResponse updateClaimDetails(Long id, UpdateClaimDetailsRequest request) {
         // Partial update of claim details:
         // if a block is missing (null) we keep the existing data unchanged.
-        Claim claim = claimRepository.findById(id)
+        Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+
+
+        workflowService.assertEditable(claim.getStatus());
 
         if (request.getFlight() != null) {
             // Update the existing Flight in-place to avoid creating extra rows.
@@ -144,51 +155,48 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     }
 
     @Override
-    @Transactional
-    public ClaimResponse updateClaimStatus(Long id, StatusChangeRequest request) {
-        // Manual status change: validate transition and write ClaimEvents.
-        ClaimStatus newStatus = request.getStatus();
-        if (newStatus == null) {
+    public ClaimResponse transition(Long id, StatusChangeRequest request) {
+        ClaimStatus targetStatus = request.getStatus();
+        if(targetStatus == null){
             throw new IllegalArgumentException("Status must not be null");
         }
-
-        Claim claim = claimRepository.findById(id)
+        Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
 
-        workflowService.assertTransitionAllowed(claim.getStatus(), newStatus);
+        workflowService.assertTransitionAllowed(claim.getStatus(), targetStatus);
+
+        EventTypes eventType = workflowService.eventType(targetStatus);
 
         ClaimEvents claimEvents = new ClaimEvents();
         claimEvents.setClaim(claim);
-        claimEvents.setType(EventTypes.STATUS_CHANGED);
+        claimEvents.setType(eventType);
+        claimEvents.setPayload(buildTransitionPayload(claim.getStatus(), targetStatus, request.getNote()));
 
-        String payload = buildTransitionPayload(claim.getStatus(), newStatus, request.getNote());
-        claimEvents.setPayload(payload);
-
-        claim.setStatus(newStatus);
-
+        claim.setStatus(targetStatus);
         claimRepository.save(claim);
         eventsRepository.save(claimEvents);
-
         return claimMapper.toResponse(claim);
     }
 
+
     @Override
+    @Transactional(readOnly = true)
     public ClaimResponse getClaimById(Long id) {
         // Fetch a single claim by id.
-        return claimRepository.findById(id)
+        return claimRepository.findWithDetailsById(id)
                 .map(claimMapper::toResponse)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
     }
 
     @Override
-    public Iterable<ClaimResponse> getAllClaims() {
+    @Transactional(readOnly = true)
+    public Page<ClaimResponse> getAllClaims(Pageable pageable) {
         // Fetch claim list. For MVP we return all.
-        return claimRepository.findAll().stream()
-                .map(claimMapper::toResponse)
-                .collect(Collectors.toList());
+        return claimRepository.findAll(pageable).map(claimMapper::toResponse);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<EventsResponse> getClaimEvents(Long id) {
         // Claim events. First validate claim exists to return 404 instead of an empty list.
         if (!claimRepository.existsById(id)) {
@@ -200,47 +208,13 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public LetterResponse getClaimLetter(Long id) {
-        Claim claim = claimRepository.findById(id)
+        Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
         return claimLetterService.generateLetter(claim);
     }
 
-    @Override
-    @Transactional
-    public ClaimResponse submitClaim(Long id, SubmitClaimRequest request) {
-        return moveClaimEvent(id, ClaimStatus.SUBMITTED, EventTypes.LETTER_SUBMITTED, request == null ? null : request.getNote());
-    }
-
-    @Override
-    @Transactional
-    public ClaimResponse sendFollowUp(Long id, FollowUpRequest request) {
-        return moveClaimEvent(id, ClaimStatus.FOLLOW_UP_SENT, EventTypes.FOLLOW_UP_SENT, request == null ? null : request.getNote());
-    }
-
-    @Override
-    @Transactional
-    public ClaimResponse approveClaim(Long id, ApproveClaimRequest request) {
-        return moveClaimEvent(id, ClaimStatus.APPROVED, EventTypes.CLAIM_APPROVED, request == null ? null : request.getNote());
-    }
-
-    @Override
-    @Transactional
-    public ClaimResponse rejectClaim(Long id, RejectClaimRequest request) {
-        return moveClaimEvent(id, ClaimStatus.REJECTED, EventTypes.CLAIM_REJECTED, request == null ? null : request.getNote());
-    }
-
-    @Override
-    @Transactional
-    public ClaimResponse markClaimAsPaid(Long id, PaidClaimRequest request) {
-        return moveClaimEvent(id, ClaimStatus.PAID, EventTypes.CLAIM_PAID, request == null ? null : request.getNote());
-    }
-
-    @Override
-    @Transactional
-    public ClaimResponse closeClaim(Long id, CloseClaimRequest request) {
-        return moveClaimEvent(id, ClaimStatus.CLOSED, EventTypes.CLAIM_CLOSED, request == null ? null : request.getNote());
-    }
 
     private void recalcDerivedFields(Claim claim) {
         // Centralized recalculation of derived fields to keep create/update consistent:
@@ -264,25 +238,11 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         claim.setStatus(workflowService.autoPreSubmitStatus(claim.getStatus(), hasAllRequired));
     }
 
-    private ClaimResponse moveClaimEvent(Long id,ClaimStatus targetStatus, EventTypes type, String note) {
-        Claim claim = claimRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
-        workflowService.assertTransitionAllowed(claim.getStatus(), targetStatus);
-        ClaimEvents claimEvents = new ClaimEvents();
-        claimEvents.setClaim(claim);
-        claimEvents.setType(type);
-        ClaimStatus fromStatus = claim.getStatus();
-        claimEvents.setPayload(buildTransitionPayload(fromStatus, targetStatus, note));
-        claim.setStatus(targetStatus);
-        claimRepository.save(claim);
-        eventsRepository.save(claimEvents);
-        return claimMapper.toResponse(claim);
-    }
-
     private String buildTransitionPayload(ClaimStatus from, ClaimStatus to, String note) {
-        String safeNote = Optional.ofNullable(note).orElse("");
-        String escapedNote = safeNote.replace("\\", "\\\\").replace("\"", "\\\"");
-        String payload = "{\"from\":\"" + from + "\",\"to\":\"" + to + "\",\"note\":\"" + escapedNote + "\"}";
-        return payload;
+        return objectMapper.writeValueAsString(Map.of(
+                "from", from.name(),
+                "to", to.name(),
+                "note", note == null ? "" : note
+        ));
     }
 }

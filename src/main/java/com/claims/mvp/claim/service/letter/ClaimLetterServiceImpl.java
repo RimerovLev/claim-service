@@ -4,6 +4,7 @@ import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.claim.model.Claim;
 import com.claims.mvp.claim.model.Flight;
 import com.claims.mvp.claim.model.Issue;
+import com.claims.mvp.user.model.User;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -11,17 +12,34 @@ public class ClaimLetterServiceImpl implements ClaimLetterService {
 
     @Override
     public LetterResponse generateLetter(Claim claim) {
+        if (claim == null) {
+            throw new IllegalArgumentException("Claim cannot be null");
+        }
+        User user = claim.getUser();
+        if (user == null || user.getFullName() == null || user.getFullName().isBlank()) {
+            throw new IllegalArgumentException("User must have a full name");
+        }
         Flight flight = claim.getFlight();
         Issue issue = claim.getIssue();
+        if (flight == null || issue == null) {
+            throw new IllegalArgumentException("Flight and issue must be set");
+        }
 
         String subject = "EU261 Compensation Claim - " + flight.getFlightNumber()
                 + " (" + flight.getRouteFrom() + " -> " + flight.getRouteTo() + ")";
 
-        Integer days = issue.getCancellationNoticeDays();
+
         String incidentLine = switch (issue.getType()) {
-            case DELAY -> "My flight was delayed by " + issue.getDelayMinutes() + " minutes.";
-            case CANCELLATION -> "My flight was cancelled. I was notified "
-                    + (days == null ? "N/A" : days) + " days before departure.";
+            case DELAY -> {
+                Integer delayMinutes = issue.getDelayMinutes();
+                yield "My flight was delayed by " + (delayMinutes == null ? "unknown" : delayMinutes) + " minutes.";
+            }
+            case CANCELLATION -> {
+                Integer days = issue.getCancellationNoticeDays();
+                yield "My flight was cancelled. I was notified "
+                        + (days == null ? "N/A" : days) + " days before departure.";
+            }
+            default -> throw new IllegalArgumentException("Unsupported issue type: " + issue.getType());
 
         };
         String body = """

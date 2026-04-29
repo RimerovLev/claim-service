@@ -7,6 +7,8 @@ import com.claims.mvp.claim.service.ClaimService;
 import com.claims.mvp.events.dto.response.EventsResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,23 +26,24 @@ public class ClaimController {
         return claimService.createClaim(request);
     }
 
+    @PostMapping("/{id}/transition")
+    public ClaimResponse transitionClaim(@PathVariable Long id, @Valid @RequestBody StatusChangeRequest request) {
+        return claimService.transition(id, request);
+    }
+
     @GetMapping("/{id}")
     public ClaimResponse getClaimById(@PathVariable Long id) {
         return claimService.getClaimById(id);
     }
 
     @GetMapping
-    public Iterable<ClaimResponse> getAllClaims() {
-        return claimService.getAllClaims();
+    public Page<ClaimResponse> getAllClaims(Pageable pageable) {
+        return claimService.getAllClaims(pageable);
     }
 
     @PatchMapping("/{id}/update")
     public ClaimResponse changeClaimDetails(@PathVariable Long id, @Valid @RequestBody UpdateClaimDetailsRequest request) {
-        return  claimService.updateClaimDetails(id, request);
-    }
-    @PostMapping("/{id}/status")
-    public ClaimResponse updateClaimStatus(@PathVariable Long id, @Valid @RequestBody StatusChangeRequest request) {
-        return claimService.updateClaimStatus(id, request);
+        return claimService.updateClaimDetails(id, request);
     }
 
     @GetMapping("/{id}/events")
@@ -53,34 +56,5 @@ public class ClaimController {
         return claimService.getClaimLetter(id);
     }
 
-    @PostMapping("/{id}/submit")
-    public ClaimResponse submitClaim(@PathVariable Long id, @RequestBody(required = false) SubmitClaimRequest request) {
-        return claimService.submitClaim(id, request);
-    }
-
-    @PostMapping("/{id}/follow-up")
-    public ClaimResponse sendFollowUp(@PathVariable Long id, @RequestBody FollowUpRequest request){
-        return claimService.sendFollowUp(id, request);
-    }
-
-    @PostMapping("/{id}/approve")
-    public ClaimResponse approveClaim(@PathVariable Long id, @RequestBody ApproveClaimRequest request){
-        return claimService.approveClaim(id, request);
-    }
-
-    @PostMapping("/{id}/reject")
-    public ClaimResponse rejectClaim(@PathVariable Long id, @RequestBody RejectClaimRequest request){
-        return claimService.rejectClaim(id, request);
-    }
-
-    @PostMapping("/{id}/paid")
-    public ClaimResponse paidClaim(@PathVariable Long id, @RequestBody PaidClaimRequest request){
-        return claimService.markClaimAsPaid(id, request);
-    }
-
-    @PostMapping("/{id}/close")
-    public ClaimResponse closeClaim(@PathVariable Long id, @RequestBody CloseClaimRequest request){
-        return claimService.closeClaim(id, request);
-    }
 
 }

@@ -45,8 +45,11 @@ public class ClaimDocumentsServiceImpl implements ClaimDocumentsService {
 
         for (BoardingDocumentRequest dto : documentDtos) {
             BoardingDocuments existing = byType.get(dto.getType());
-            BoardingDocuments merged = toEntity(dto, claim, existing);
-            byType.put(merged.getType(), merged);
+            if (existing != null) {
+                existing.setUrl(dto.getUrl());
+            } else {
+               byType.put(dto.getType(), toEntity(dto, claim, null));
+            }
         }
 
         claim.getDocuments().clear();
@@ -65,11 +68,19 @@ public class ClaimDocumentsServiceImpl implements ClaimDocumentsService {
 
     private BoardingDocuments toEntity(BoardingDocumentRequest dto, Claim claim, BoardingDocuments target) {
         BoardingDocuments document = target == null ? new BoardingDocuments() : target;
-        document.setId(dto.getId() != null
-                ? dto.getId()
-                : Optional.ofNullable(document.getId()).orElse(UUID.randomUUID().toString()));
+        // Only set ID on CREATE (target == null)
+        if (target == null) {
+            document.setId(dto.getId() != null ? dto.getId() : UUID.randomUUID().toString());
+        }
+        // On UPDATE: keep existing ID, ignore dto.getId()
         document.setClaim(claim);
+        if(dto.getType() == null){
+            throw new IllegalArgumentException("Document type cannot be null");
+        }
         document.setType(dto.getType());
+        if(dto.getUrl() == null || dto.getUrl().isBlank()){
+            throw new IllegalArgumentException("Document URL cannot be null");
+        }
         document.setUrl(dto.getUrl());
         return document;
     }

@@ -24,7 +24,7 @@ public class DocumentController {
     private final DocumentStorageService documentStorageService;
 
     @PostMapping("/upload")
-    public ResponseEntity<DocumentResponse> uploadDocument(
+    public DocumentResponse uploadDocument(
             @RequestParam Long claimId,
             @RequestParam String type,
             @RequestParam MultipartFile file,
@@ -39,19 +39,18 @@ public class DocumentController {
 
         DocumentUploadRequest request = new DocumentUploadRequest();
         request.setClaimId(claimId);
-        request.setType(DocumentTypes.valueOf(documentType.name().toUpperCase()));
+        request.setType(documentType);
         request.setFile(file);
         request.setDescription(description);
 
-        DocumentResponse response = documentStorageService.uploadDocument(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return documentStorageService.uploadDocument(request);
     }
 
     @GetMapping("/claim/{claimId}")
-    public ResponseEntity<List<DocumentResponse>> getDocumentsByClaimId(@PathVariable Long claimId) throws IOException {
+    public List<DocumentResponse> getDocumentsByClaimId(@PathVariable Long claimId) throws IOException {
         log.info("Getting documents for claim: {}", claimId);
-        List<DocumentResponse> documents = documentStorageService.getDocumentsByClaimId(claimId);
-        return ResponseEntity.ok(documents);
+
+        return documentStorageService.getDocumentsByClaimId(claimId);
     }
 
     @GetMapping("/download/{documentId}")
@@ -70,8 +69,7 @@ public class DocumentController {
     }
 
     @DeleteMapping("/delete/{documentId}")
-    public ResponseEntity<Void> deleteDocument(@PathVariable String documentId) throws IOException {
+    public void deleteDocument(@PathVariable String documentId) throws IOException {
         documentStorageService.deleteDocument(documentId);
-        return ResponseEntity.ok().build();
     }
 }
