@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "MAVEN_OPTS": "-Xmx1024m"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(ls)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(echo *)",
+      "Bash(pwd)",
+      "Bash(java *)",
+      "Bash(mvn *)",
+      "Bash(curl *)",
+      "Read",
+      "Edit",
+      "Bash(npm --version)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)"
+    ],
+    "additionalDirectories": [
+      "/Users/levrimerov/claims-mvp/graphify-out"
+    ]
+  }
+}

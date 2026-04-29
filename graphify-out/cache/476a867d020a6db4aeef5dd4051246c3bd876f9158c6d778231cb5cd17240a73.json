@@ -1,0 +1,1 @@
+{"nodes": [{"id": "claimletterservice_interface", "label": "ClaimLetterService", "file_type": "code", "source_file": "src/main/java/com/claims/mvp/claim/service/letter/ClaimLetterService.java", "source_location": "line 6", "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

@@ -1,0 +1,1 @@
+{"nodes": [{"id": "claimdocumentsservice_interface", "label": "ClaimDocumentsService", "file_type": "code", "source_file": "src/main/java/com/claims/mvp/claim/service/documents/ClaimDocumentsService.java", "source_location": "line 15", "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

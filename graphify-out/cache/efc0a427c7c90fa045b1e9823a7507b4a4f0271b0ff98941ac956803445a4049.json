@@ -1,0 +1,1 @@
+{"nodes": [{"id": "flightresponse_dto", "label": "FlightResponse", "file_type": "code", "source_file": "src/main/java/com/claims/mvp/claim/dto/response/FlightResponse.java", "source_location": "FlightResponse", "source_url": null, "captured_at": null, "author": null, "contributor": null}], "edges": [], "hyperedges": []}

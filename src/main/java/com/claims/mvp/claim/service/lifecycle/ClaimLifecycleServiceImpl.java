@@ -41,12 +41,30 @@ import java.util.stream.Collectors;
  * ClaimLifecycleService (application/orchestrator layer).
  * <p>
  * Owns the claim "lifecycle" from the API perspective:
- * - createClaim / updateClaimDetails / transition
- * * - persisting Claim and related entities
- * - writing events (ClaimEvents)
+ * <ul>
+ *   <li>{@code createClaim} — initial intake; runs eligibility and assigns the
+ *       pre-submit status based on uploaded documents.</li>
+ *   <li>{@code updateClaimDetails} — partial update of flight / issue / EU context
+ *       / documents. Forbidden after SUBMITTED. Re-runs eligibility on every change.</li>
+ *   <li>{@code transition} — single FSM transition endpoint. Validates against
+ *       the workflow's allowed-transitions table and writes a typed
+ *       {@link com.claims.mvp.events.model.ClaimEvents} entry.</li>
+ *   <li>read-only lookups: {@code getClaimById}, {@code getAllClaims},
+ *       {@code getClaimEvents}, {@code getClaimLetter}.</li>
+ * </ul>
  * <p>
  * Rule of thumb: this service orchestrates other services and repositories,
- * while delegating "pure" rules (workflow, documents, eligibility) to dedicated components.
+ * while delegating pure rules to dedicated components:
+ * <ul>
+ *   <li>{@link com.claims.mvp.claim.service.workflow.ClaimWorkflowService}
+ *       — FSM transitions and event-type lookup.</li>
+ *   <li>{@link com.claims.mvp.eligibility.service.EligibilityService}
+ *       — pure rule engine (no DB access).</li>
+ *   <li>{@link com.claims.mvp.claim.service.documents.ClaimDocumentsService}
+ *       — document merge / mapping logic.</li>
+ *   <li>{@link com.claims.mvp.claim.service.letter.ClaimLetterService}
+ *       — claim letter generation.</li>
+ * </ul>
  */
 @RequiredArgsConstructor
 @Service

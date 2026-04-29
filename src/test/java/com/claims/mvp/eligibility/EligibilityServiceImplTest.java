@@ -8,6 +8,8 @@ import com.claims.mvp.claim.model.Flight;
 import com.claims.mvp.claim.model.Issue;
 import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
+import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
+import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -17,7 +19,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class EligibilityServiceImplTest {
 
-    private final EligibilityServiceImpl service = new EligibilityServiceImpl();
+    private final EligibilityServiceImpl service = new EligibilityServiceImpl(List.of(
+            new DelayEligibilityStrategy(),
+            new CancellationEligibilityStrategy()
+    ));
+
 
     @Test
     void delayEligible_inScope_noExtraordinary() {

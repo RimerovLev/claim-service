@@ -11,6 +11,5 @@ import java.util.List;
 public interface EligibilityService {
 
     EligibilityResult evaluate(Issue issue, Flight flight, EuContext euContext, List<BoardingDocuments> documents);
-
     int calculateCompensationAmount(Integer distanceKm);
 }
