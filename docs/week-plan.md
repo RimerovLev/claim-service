@@ -4,43 +4,42 @@
 
 Цель недели: причесать тех-долг, добавить 2 новых типа кейсов (missed connection + baggage delayed), запустить первый кусок communications layer.
 
+**Прогресс:**
+- [x] Day 1 — Eligibility strategies
+- [x] Day 2 — Letter strategies
+- [ ] Day 3 — Missed connection
+- [ ] Day 4 — Baggage delayed
+- [ ] Day 5 — Email starter
+
 ---
 
-## Day 1 — Cleanup + начало рефакторинга на стратегии
+## Day 1 — Cleanup + начало рефакторинга на стратегии — ✅ DONE
 
 **Цель.** Зафиксировать предыдущую работу коммитом и подготовить почву для расширения типов кейсов.
 
 **Задачи:**
 
-1. **Cleanup дебага и закрытие предыдущего рефакторинга** (~30 мин)
-   - Удалить `@Slf4j` + `log.error(...)` из `GlobalExceptionHandler.handleRuntimeException` (это был временный дебаг).
-   - `./mvnw clean test` — убедиться что всё зелёное.
-   - `git add -A && git commit` с текстом из `docs/commit-message` (если хочешь, могу сгенерить).
+1. [x] **Cleanup дебага и закрытие предыдущего рефакторинга**
+   - [x] Удалить `@Slf4j` + `log.error(...)` из `GlobalExceptionHandler.handleRuntimeException`.
+   - [x] `./mvnw clean test` — всё зелёное.
+   - [x] Коммит refactoring-пачки.
 
-2. **Начало рефакторинга `EligibilityService` на стратегии** (~3 часа)
-   - Создать интерфейс `com.claims.mvp.eligibility.strategy.EligibilityStrategy`:
-     ```java
-     public interface EligibilityStrategy {
-         IssueType supportedType();
-         EligibilityResult evaluate(Issue issue, Flight flight, EuContext euContext, List<BoardingDocuments> documents);
-     }
-     ```
-   - Создать классы `DelayEligibilityStrategy`, `CancellationEligibilityStrategy` — перенести логику из текущего `EligibilityServiceImpl.evaluate` в соответствующие методы. Каждый класс — `@Component` с `@Order` или просто Spring-бин.
-   - В `EligibilityServiceImpl` инжектить `List<EligibilityStrategy>` (Spring сам соберёт все бины), строить `Map<IssueType, EligibilityStrategy>` в конструкторе через stream'ы.
-   - `evaluate(...)` теперь делает:
-     ```java
-     EligibilityStrategy strategy = strategiesByType.get(issue.getType());
-     if (strategy == null) throw new IllegalArgumentException("No strategy for " + issue.getType());
-     return strategy.evaluate(issue, flight, euContext, documents);
-     ```
+2. [x] **Начало рефакторинга `EligibilityService` на стратегии**
+   - [x] Интерфейс `EligibilityStrategy` создан.
+   - [x] `DelayEligibilityStrategy` — логика DELAY из EU 261 вынесена.
+   - [x] `CancellationEligibilityStrategy` — логика CANCELLATION вынесена.
+   - [x] `EligibilityServiceImpl` переписан на делегата с `Map<IssueType, EligibilityStrategy>`.
+   - [x] `EligibilityServiceImplTest` и `ClaimServiceImplTest` адаптированы (передача списка стратегий в конструктор).
+   - [x] Все тесты зелёные.
 
 **Acceptance criteria:**
-- Все существующие тесты `EligibilityServiceImplTest` проходят без изменений.
-- `EligibilityServiceImpl` стал thin-делегатом.
-- Логика DELAY и CANCELLATION разнесена по двум классам.
+- [x] `EligibilityServiceImpl` стал thin-делегатом без бизнес-логики.
+- [x] Логика DELAY и CANCELLATION разнесена по двум классам.
+- [x] Регрессия пройдена.
 
-**Risks / гэпы:**
-- `calculateCompensationAmount` сейчас в `EligibilityServiceImpl` — вынести его в utility или общий abstract base для стратегий.
+**Замечания по итогам:**
+- `calculateCompensationAmount` оставлен в `EligibilityServiceImpl` для backward compatibility интерфейса. Каждая стратегия владеет собственной формулой расчёта.
+- При добавлении нового типа кейса достаточно создать один `@Component` — сервис менять не надо.
 
 ---
 

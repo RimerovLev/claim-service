@@ -26,6 +26,8 @@ import com.claims.mvp.claim.service.documents.ClaimDocumentsServiceImpl;
 import com.claims.mvp.claim.service.lifecycle.ClaimLifecycleServiceImpl;
 import com.claims.mvp.claim.service.letter.ClaimLetterService;
 import com.claims.mvp.claim.service.letter.ClaimLetterServiceImpl;
+import com.claims.mvp.claim.service.letter.strategy.CancellationLetterStrategy;
+import com.claims.mvp.claim.service.letter.strategy.DelayLetterStrategy;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowServiceImpl;
 import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
@@ -84,7 +86,9 @@ class ClaimServiceImplTest {
         );
         ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
         ClaimDocumentsService documentsService = new ClaimDocumentsServiceImpl();
-        ClaimLetterService letterService = new ClaimLetterServiceImpl();
+        ClaimLetterService letterService = new ClaimLetterServiceImpl(
+                List.of(new DelayLetterStrategy(), new CancellationLetterStrategy())
+        );
 
         ClaimEntityMapper entityMapper = Mappers.getMapper(ClaimEntityMapper.class);
         ClaimMapper claimMapper = Mappers.getMapper(ClaimMapper.class);

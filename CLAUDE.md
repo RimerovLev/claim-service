@@ -1,5 +1,15 @@
 # claims-mvp
 
+## Where we are right now
+
+**Latest day:** [docs/daily/2026-04-29.md](docs/daily/2026-04-29.md)
+**Current week plan:** [docs/week-plan.md](docs/week-plan.md)
+**Architecture map:** [docs/architecture-overview.md](docs/architecture-overview.md)
+**Long-term roadmap:** [docs/roadmap.md](docs/roadmap.md)
+**TZ vs implementation:** [docs/tz-checklist.md](docs/tz-checklist.md)
+
+When starting a new session, read the latest daily snapshot first.
+
 ## Stack
 Java 21, Spring Boot 4, PostgreSQL, Flyway, MapStruct, Lombok, TestContainers
 
@@ -12,7 +22,9 @@ com.claims.mvp
 │   ├── service/documents/   ClaimDocumentsServiceImpl  ← document management
 │   ├── service/storage/     DocumentStorageServiceImpl ← file persistence + MIME validation
 │   └── service/letter/      ClaimLetterServiceImpl     ← EU 261/2004 letter generation
-├── eligibility/    → EligibilityServiceImpl (pure rule engine, no side effects)
+├── eligibility/    → pure rule engine, no side effects
+│   ├── service/             EligibilityServiceImpl (delegator over strategies)
+│   └── strategy/            EligibilityStrategy + per-IssueType impls (Delay, Cancellation)
 ├── events/         → ClaimEvents audit log
 ├── user/           → UserController → UserServiceImpl → UserRepository
 ├── exception/      → GlobalExceptionHandler + ErrorResponse record
@@ -27,9 +39,9 @@ com.claims.mvp
 - **Flyway only** for schema changes. Never use `ddl-auto=create` or `update`.
 
 ## Known issues (do not introduce workarounds)
-- `BoardingDocumentsRepository` has no soft-delete filter — `deletedAt` is not applied automatically
-- `UserServiceImpl` has a potential race condition on user creation (no unique constraint handling)
-- `DocumentStorageServiceImpl` — magic-bytes MIME check exists but error path incomplete
+- `BoardingDocuments.deletedAt` field exists but no soft-delete logic implemented (repository does not filter, no service writes the timestamp)
+- `ClaimEvents.payload` is stored as `TEXT`; consider migrating to `jsonb` before analytics work
+- `Claim` `@OneToOne` associations are technically `EAGER` despite `fetch = LAZY` annotation (Hibernate limitation on non-owning side; needs bytecode enhancement plugin to truly lazy-load)
 
 ## Testing rules
 - Integration tests extend `IntegrationTestBase` which spins up a real PostgreSQL via TestContainers
