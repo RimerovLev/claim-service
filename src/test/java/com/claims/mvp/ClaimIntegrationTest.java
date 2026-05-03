@@ -336,6 +336,15 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         return issue;
     }
 
+    private IssueRequest buildMissedConnectionIssue(int totalArrivalDelayMinutes) {
+        IssueRequest issue = new IssueRequest();
+        issue.setType(IssueType.MISSED_CONNECTION);
+        issue.setDelayMinutes(totalArrivalDelayMinutes);
+        issue.setCancellationNoticeDays(null);
+        issue.setExtraordinaryCircumstances(false);
+        return issue;
+    }
+
     private EuContextRequest buildEuContext(boolean departureFromEu, boolean euCarrier) {
         EuContextRequest ctx = new EuContextRequest();
         ctx.setDepartureFromEu(departureFromEu);
@@ -386,6 +395,44 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(letter.getBody()).contains("FRA");
         assertThat(letter.getBody()).contains("MAD");
         assertThat(letter.getBody()).contains("220");
+    }
+
+    @Test
+    void createClaim_missedConnection_isEligibleAndGeneratesLetter() {
+        UserResponse user = createUser("Missed Connection User", "missed-connection@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildMissedConnectionIssue(240));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("ticket-mc", DocumentTypes.TICKET),
+                buildDocument("boarding-pass-mc", DocumentTypes.BOARDING_PASS)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getEligible()).isTrue();
+        assertThat(created.getCompensationAmount()).isEqualTo(400);
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+
+        LetterResponse letter = client().get()
+                .uri("/api/claims/" + created.getId() + "/letter")
+                .retrieve()
+                .body(LetterResponse.class);
+
+        assertThat(letter).isNotNull();
+        assertThat(letter.getSubject()).contains("EU 261");
+        assertThat(letter.getSubject()).contains("LH123");
+        assertThat(letter.getBody()).contains("Missed Connection User");
+        assertThat(letter.getBody()).contains("240 minutes");
     }
 
     @Test

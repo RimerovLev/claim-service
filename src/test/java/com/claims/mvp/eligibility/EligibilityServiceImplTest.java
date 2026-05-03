@@ -10,6 +10,7 @@ import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
 import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
+import com.claims.mvp.eligibility.strategy.MissedConnectionEligibilityStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -21,7 +22,8 @@ class EligibilityServiceImplTest {
 
     private final EligibilityServiceImpl service = new EligibilityServiceImpl(List.of(
             new DelayEligibilityStrategy(),
-            new CancellationEligibilityStrategy()
+            new CancellationEligibilityStrategy(),
+            new MissedConnectionEligibilityStrategy()
     ));
 
 
@@ -99,6 +101,60 @@ class EligibilityServiceImplTest {
         assertThat(service.calculateCompensationAmount(1500)).isEqualTo(250);
         assertThat(service.calculateCompensationAmount(3500)).isEqualTo(400);
         assertThat(service.calculateCompensationAmount(4000)).isEqualTo(600);
+    }
+
+    @Test
+    void missedConnectionEligible_arrivalDelayAtLeast3Hours_inScope() {
+        EligibilityResult result = service.evaluate(
+                issue(IssueType.MISSED_CONNECTION, 240, null, false),
+                flight(1800),
+                euContext(true, false),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isTrue();
+        assertThat(result.getCompensationAmount()).isEqualTo(400);
+        assertThat(result.getRequiredDocuments())
+                .containsExactly(DocumentTypes.TICKET, DocumentTypes.BOARDING_PASS);
+    }
+
+    @Test
+    void missedConnectionNotEligible_arrivalDelayBelowThreshold() {
+        EligibilityResult result = service.evaluate(
+                issue(IssueType.MISSED_CONNECTION, 120, null, false),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+    }
+
+    @Test
+    void missedConnectionNotEligible_extraordinaryCircumstances() {
+        EligibilityResult result = service.evaluate(
+                issue(IssueType.MISSED_CONNECTION, 300, null, true),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+    }
+
+    @Test
+    void missedConnectionNotEligible_outOfScope() {
+        EligibilityResult result = service.evaluate(
+                issue(IssueType.MISSED_CONNECTION, 240, null, false),
+                flight(1800),
+                euContext(false, false),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
     }
 
     private Issue issue(IssueType type, Integer delayMinutes, Integer cancellationNoticeDays, boolean extraordinary) {

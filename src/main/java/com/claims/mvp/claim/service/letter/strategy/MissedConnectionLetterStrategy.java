@@ -7,12 +7,8 @@ import com.claims.mvp.claim.model.Flight;
 import com.claims.mvp.claim.model.Issue;
 import org.springframework.stereotype.Component;
 
-/**
- * Letter for flight delay claims under EU 261/2004.
- */
 @Component
-public class DelayLetterStrategy implements LetterStrategy{
-
+public class MissedConnectionLetterStrategy implements LetterStrategy{
     private static final String BODY_TEMPLATE = """
     Dear %s Customer Relations Team,
             
@@ -34,11 +30,9 @@ public class DelayLetterStrategy implements LetterStrategy{
             Sincerely,
             %s
             """;
-
-
     @Override
     public IssueType supportedIssueType() {
-        return IssueType.DELAY;
+        return IssueType.MISSED_CONNECTION;
     }
 
     @Override

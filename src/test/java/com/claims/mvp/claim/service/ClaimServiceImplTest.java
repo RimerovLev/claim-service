@@ -28,10 +28,12 @@ import com.claims.mvp.claim.service.letter.ClaimLetterService;
 import com.claims.mvp.claim.service.letter.ClaimLetterServiceImpl;
 import com.claims.mvp.claim.service.letter.strategy.CancellationLetterStrategy;
 import com.claims.mvp.claim.service.letter.strategy.DelayLetterStrategy;
+import com.claims.mvp.claim.service.letter.strategy.MissedConnectionLetterStrategy;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowServiceImpl;
 import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
+import com.claims.mvp.eligibility.strategy.MissedConnectionEligibilityStrategy;
 import com.claims.mvp.events.dao.EventsRepository;
 import tools.jackson.databind.ObjectMapper;
 import com.claims.mvp.events.model.ClaimEvents;
@@ -82,12 +84,20 @@ class ClaimServiceImplTest {
     @BeforeEach
     void setUp() {
         EligibilityService eligibilityService = new EligibilityServiceImpl(
-                List.of(new DelayEligibilityStrategy(), new CancellationEligibilityStrategy())
+                List.of(
+                        new DelayEligibilityStrategy(),
+                        new CancellationEligibilityStrategy(),
+                        new MissedConnectionEligibilityStrategy()
+                )
         );
         ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
         ClaimDocumentsService documentsService = new ClaimDocumentsServiceImpl();
         ClaimLetterService letterService = new ClaimLetterServiceImpl(
-                List.of(new DelayLetterStrategy(), new CancellationLetterStrategy())
+                List.of(
+                        new DelayLetterStrategy(),
+                        new CancellationLetterStrategy(),
+                        new MissedConnectionLetterStrategy()
+                )
         );
 
         ClaimEntityMapper entityMapper = Mappers.getMapper(ClaimEntityMapper.class);
