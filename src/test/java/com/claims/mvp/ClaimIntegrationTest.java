@@ -293,6 +293,42 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(status).isEqualTo(400);
     }
 
+    @Test
+    void createClaim_baggageDelayed_withRequiredDocuments_isEligibleReadyToSubmit_andLetterMentionsMontreal() {
+        UserResponse user = createUser("Baggage User", "baggage-user@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildBaggageDelayedIssue(24));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("pir-1", DocumentTypes.PIR),
+                buildDocument("bag-tag-1", DocumentTypes.BAG_TAG)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getEligible()).isTrue();
+        assertThat(created.getCompensationAmount()).isEqualTo(50);
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+
+        LetterResponse letter = client().get()
+                .uri("/api/claims/" + created.getId() + "/letter")
+                .retrieve()
+                .body(LetterResponse.class);
+
+        assertThat(letter).isNotNull();
+        assertThat(letter.getBody()).contains("Montreal Convention");
+        assertThat(letter.getBody()).contains("Article 19");
+    }
+
     private RestClient client() {
         return RestClient.create("http://localhost:" + port);
     }
@@ -332,6 +368,14 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         issue.setType(IssueType.DELAY);
         issue.setDelayMinutes(delayMinutes);
         issue.setCancellationNoticeDays(null);
+        issue.setExtraordinaryCircumstances(false);
+        return issue;
+    }
+
+    private IssueRequest buildBaggageDelayedIssue(int baggageDelayHours) {
+        IssueRequest issue = new IssueRequest();
+        issue.setType(IssueType.BAGGAGE_DELAYED);
+        issue.setBaggageDelayHours(baggageDelayHours);
         issue.setExtraordinaryCircumstances(false);
         return issue;
     }

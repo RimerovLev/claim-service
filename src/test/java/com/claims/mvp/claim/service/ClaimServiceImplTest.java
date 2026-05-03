@@ -28,9 +28,11 @@ import com.claims.mvp.claim.service.letter.ClaimLetterService;
 import com.claims.mvp.claim.service.letter.ClaimLetterServiceImpl;
 import com.claims.mvp.claim.service.letter.strategy.CancellationLetterStrategy;
 import com.claims.mvp.claim.service.letter.strategy.DelayLetterStrategy;
+import com.claims.mvp.claim.service.letter.strategy.BaggageDelayedLetterStrategy;
 import com.claims.mvp.claim.service.letter.strategy.MissedConnectionLetterStrategy;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowServiceImpl;
+import com.claims.mvp.eligibility.strategy.BaggageDelayedEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.MissedConnectionEligibilityStrategy;
@@ -87,7 +89,8 @@ class ClaimServiceImplTest {
                 List.of(
                         new DelayEligibilityStrategy(),
                         new CancellationEligibilityStrategy(),
-                        new MissedConnectionEligibilityStrategy()
+                        new MissedConnectionEligibilityStrategy(),
+                        new BaggageDelayedEligibilityStrategy()
                 )
         );
         ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
@@ -96,7 +99,8 @@ class ClaimServiceImplTest {
                 List.of(
                         new DelayLetterStrategy(),
                         new CancellationLetterStrategy(),
-                        new MissedConnectionLetterStrategy()
+                        new MissedConnectionLetterStrategy(),
+                        new BaggageDelayedLetterStrategy()
                 )
         );
 

@@ -8,6 +8,7 @@ import com.claims.mvp.claim.model.Flight;
 import com.claims.mvp.claim.model.Issue;
 import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
+import com.claims.mvp.eligibility.strategy.BaggageDelayedEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.MissedConnectionEligibilityStrategy;
@@ -23,7 +24,8 @@ class EligibilityServiceImplTest {
     private final EligibilityServiceImpl service = new EligibilityServiceImpl(List.of(
             new DelayEligibilityStrategy(),
             new CancellationEligibilityStrategy(),
-            new MissedConnectionEligibilityStrategy()
+            new MissedConnectionEligibilityStrategy(),
+            new BaggageDelayedEligibilityStrategy()
     ));
 
 
@@ -157,11 +159,75 @@ class EligibilityServiceImplTest {
         assertThat(result.getCompensationAmount()).isEqualTo(0);
     }
 
+    @Test
+    void baggageDelayedEligible_24h() {
+        EligibilityResult result = service.evaluate(
+                baggageDelayedIssue(24, false),
+                flight(1800),
+                euContext(true, true),
+                List.of(document(DocumentTypes.PIR), document(DocumentTypes.BAG_TAG))
+        );
+
+        assertThat(result.getEligible()).isTrue();
+        assertThat(result.getCompensationAmount()).isEqualTo(50);
+        assertThat(result.getRequiredDocuments())
+                .containsExactly(DocumentTypes.BAG_TAG, DocumentTypes.PIR);
+    }
+
+    @Test
+    void baggageDelayedNotEligible_4h() {
+        EligibilityResult result = service.evaluate(
+                baggageDelayedIssue(4, false),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+        assertThat(result.getRequiredDocuments())
+                .containsExactly(DocumentTypes.BAG_TAG, DocumentTypes.PIR);
+    }
+
+    @Test
+    void baggageDelayedNotEligible_extraordinaryCircumstances() {
+        EligibilityResult result = service.evaluate(
+                baggageDelayedIssue(24, true),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+    }
+
+    @Test
+    void baggageDelayedCompensation_cappedAt30Days() {
+        EligibilityResult result = service.evaluate(
+                baggageDelayedIssue(24 * 40, false),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isTrue();
+        assertThat(result.getCompensationAmount()).isEqualTo(30 * 50);
+    }
+
     private Issue issue(IssueType type, Integer delayMinutes, Integer cancellationNoticeDays, boolean extraordinary) {
         Issue issue = new Issue();
         issue.setType(type);
         issue.setDelayMinutes(delayMinutes);
         issue.setCancellationNoticeDays(cancellationNoticeDays);
+        issue.setExtraordinaryCircumstances(extraordinary);
+        return issue;
+    }
+
+    private Issue baggageDelayedIssue(Integer baggageDelayHours, boolean extraordinary) {
+        Issue issue = new Issue();
+        issue.setType(IssueType.BAGGAGE_DELAYED);
+        issue.setBaggageDelayHours(baggageDelayHours);
         issue.setExtraordinaryCircumstances(extraordinary);
         return issue;
     }

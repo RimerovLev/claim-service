@@ -14,5 +14,6 @@ public class IssueRequest {
     private Integer cancellationNoticeDays;
     @NotNull
     private Boolean extraordinaryCircumstances;
+    private Integer baggageDelayHours;
 }
 

@@ -25,6 +25,7 @@ public class Issue {
     private IssueType type;
     private Integer delayMinutes;
     private Integer cancellationNoticeDays;
+    private Integer baggageDelayHours;
     @Column(nullable = false)
     private Boolean extraordinaryCircumstances;
 }
