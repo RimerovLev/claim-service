@@ -7,7 +7,7 @@
 **Прогресс:**
 - [x] Day 1 — Eligibility strategies
 - [x] Day 2 — Letter strategies
-- [ ] Day 3 — Missed connection
+- [x] Day 3 — Missed connection
 - [ ] Day 4 — Baggage delayed
 - [ ] Day 5 — Email starter
 
@@ -78,7 +78,13 @@
 
 ---
 
-## Day 3 — Missed connection
+## Day 3 — Missed connection — ✅ DONE
+
+**Результат:** см. [docs/daily/2026-05-03.md](daily/2026-05-03.md) (секция Day 3). Тип `MISSED_CONNECTION` добавлен через две новые стратегии без изменения существующих сервисов — архитектурный паттерн стратегий доказал работоспособность.
+
+---
+
+### Исходный план Day 3 (для истории)
 
 **Цель.** Добавить третий тип кейса end-to-end. На нём проверим, что архитектура стратегий действительно даёт лёгкое расширение.
 
