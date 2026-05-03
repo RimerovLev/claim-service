@@ -8,7 +8,7 @@
 - [x] Day 1 — Eligibility strategies
 - [x] Day 2 — Letter strategies
 - [x] Day 3 — Missed connection
-- [ ] Day 4 — Baggage delayed
+- [x] Day 4 — Baggage delayed
 - [ ] Day 5 — Email starter
 
 ---
@@ -117,7 +117,13 @@
 
 ---
 
-## Day 4 — Baggage delayed (первый багажный кейс)
+## Day 4 — Baggage delayed (первый багажный кейс) — ✅ DONE
+
+**Результат:** см. [docs/daily/2026-05-03.md](daily/2026-05-03.md) (секция Day 4). BAGGAGE_DELAYED добавлен через две новые стратегии под Montreal Convention 1999, V2 миграция Flyway применилась. Архитектура подтвердилась на принципиально другом правовом фреймворке — общего с EU 261 кейсами почти ничего нет.
+
+---
+
+### Исходный план Day 4 (для истории)
 
 **Цель.** Расширить продукт за пределы EU 261 — багажные кейсы регулирует Montreal Convention. Это другая правовая база, другая логика компенсации (не таблица по дистанции, а лимит ~1300 SDR).
 
