@@ -43,9 +43,11 @@
 
 ---
 
-## Day 2 — Стратегии для `ClaimLetterService` + регрессия
+## Day 2 — Стратегии для `ClaimLetterService` + регрессия — ✅ DONE
 
 **Цель.** Доделать рефакторинг: разнести генерацию писем по стратегиям, как сделали для eligibility.
+
+**Результат:** см. [docs/daily/2026-05-03.md](daily/2026-05-03.md). Logic разнесена по `DelayLetterStrategy` и `CancellationLetterStrategy`, `ClaimLetterServiceImpl` стал делегатом, тесты зелёные.
 
 **Задачи:**
 

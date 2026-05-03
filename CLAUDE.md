@@ -2,7 +2,7 @@
 
 ## Where we are right now
 
-**Latest day:** [docs/daily/2026-04-29.md](docs/daily/2026-04-29.md)
+**Latest day:** [docs/daily/2026-05-03.md](docs/daily/2026-05-03.md)
 **Current week plan:** [docs/week-plan.md](docs/week-plan.md)
 **Architecture map:** [docs/architecture-overview.md](docs/architecture-overview.md)
 **Long-term roadmap:** [docs/roadmap.md](docs/roadmap.md)
@@ -21,7 +21,7 @@ com.claims.mvp
 │   ├── service/workflow/    ClaimWorkflowServiceImpl   ← FSM transitions
 │   ├── service/documents/   ClaimDocumentsServiceImpl  ← document management
 │   ├── service/storage/     DocumentStorageServiceImpl ← file persistence + MIME validation
-│   └── service/letter/      ClaimLetterServiceImpl     ← EU 261/2004 letter generation
+│   └── service/letter/      ClaimLetterServiceImpl     ← delegator over LetterStrategy beans
 ├── eligibility/    → pure rule engine, no side effects
 │   ├── service/             EligibilityServiceImpl (delegator over strategies)
 │   └── strategy/            EligibilityStrategy + per-IssueType impls (Delay, Cancellation)
