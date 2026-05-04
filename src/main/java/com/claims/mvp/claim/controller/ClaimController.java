@@ -56,5 +56,10 @@ public class ClaimController {
         return claimService.getClaimLetter(id);
     }
 
+    @PostMapping("/{id}/status")
+    public ClaimResponse changeClaimStatus(@PathVariable Long id, @Valid @RequestBody StatusChangeRequest request) {
+        return claimService.transition(id, request);
+    }
+
 
 }

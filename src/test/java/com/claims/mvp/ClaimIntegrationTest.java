@@ -14,9 +14,11 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.RestClient;
 import java.time.LocalDate;
 import java.util.List;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,6 +27,9 @@ class ClaimIntegrationTest extends IntegrationTestBase {
 
     @LocalServerPort
     private int port;
+
+    @MockitoBean
+    private com.claims.mvp.notifications.NotificationService notificationService;
 
     @Test
     void createClaim_withoutDocuments_setsDocsRequested() {
@@ -260,6 +265,28 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .exchange((req, res) -> res.getStatusCode().value());
 
         assertThat(status).isEqualTo(409);
+    }
+
+    @Test
+    void createClaim_triggersNotification() {
+        UserResponse user = createUser("Notify User", "notify@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of());
+
+        client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        org.mockito.Mockito.verify(notificationService)
+                .sendClaimCreated(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

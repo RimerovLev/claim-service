@@ -19,6 +19,7 @@ import com.claims.mvp.eligibility.service.EligibilityService;
 import com.claims.mvp.events.dao.EventsRepository;
 import com.claims.mvp.events.dto.response.EventsResponse;
 import com.claims.mvp.events.model.ClaimEvents;
+import com.claims.mvp.notifications.NotificationService;
 import com.claims.mvp.user.dao.UserRepository;
 import com.claims.mvp.user.model.User;
 import jakarta.persistence.EntityNotFoundException;
@@ -80,6 +81,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     private final ClaimMapper claimMapper;
     private final ClaimLetterService claimLetterService;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
 
     @Override
@@ -112,6 +114,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         recalcDerivedFields(claim);
 
         claimRepository.save(claim);
+        notificationService.sendClaimCreated(claim);
         return claimMapper.toResponse(claim);
     }
 
@@ -193,6 +196,11 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         claim.setStatus(targetStatus);
         claimRepository.save(claim);
         eventsRepository.save(claimEvents);
+
+        if(targetStatus == ClaimStatus.SUBMITTED){
+            notificationService.sendClaimSubmitted(claim);
+        }
+
         return claimMapper.toResponse(claim);
     }
 

@@ -37,6 +37,7 @@ import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
 import com.claims.mvp.eligibility.strategy.MissedConnectionEligibilityStrategy;
 import com.claims.mvp.events.dao.EventsRepository;
+import com.claims.mvp.notifications.NotificationService;
 import tools.jackson.databind.ObjectMapper;
 import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.dao.UserRepository;
@@ -81,6 +82,9 @@ class ClaimServiceImplTest {
     @Mock
     private com.claims.mvp.claim.mapper.DocumentMapper documentMapper;
 
+    @Mock
+    private NotificationService notificationService;
+
     private ClaimService service;
 
     @BeforeEach
@@ -117,7 +121,8 @@ class ClaimServiceImplTest {
                 entityMapper,
                 claimMapper,
                 letterService,
-                new ObjectMapper()
+                new ObjectMapper(),
+                notificationService
         );
         lenient().when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(eventsRepository.save(any(ClaimEvents.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -132,6 +137,34 @@ class ClaimServiceImplTest {
         assertThat(response.getEligible()).isTrue();
         assertThat(response.getCompensationAmount()).isEqualTo(400);
         assertThat(response.getStatus()).isEqualTo(ClaimStatus.DOCS_REQUESTED);
+    }
+
+    @Test
+    void createClaim_sendsEmailNotification(){
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L)));
+        service.createClaim(buildCreateRequest(List.of()));
+        verify(notificationService).sendClaimCreated(any());
+    }
+
+    @Test
+    void transition_toSubmitted_sendsEmailNotification(){
+        Claim claim = existingClaim(ClaimStatus.READY_TO_SUBMIT, List.of(
+                boardingDocument("ticket-1", DocumentTypes.TICKET),
+                boardingDocument("boarding-pass-1", DocumentTypes.BOARDING_PASS)
+        ));
+        when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
+        service.transition(7L, new StatusChangeRequest(ClaimStatus.SUBMITTED, "sent via email"));
+        verify(notificationService).sendClaimSubmitted(any(Claim.class));
+    }
+
+    @Test
+    void transition_toFollowUp_doesNotSendSubmittedNotification() {
+        Claim claim = existingClaim(ClaimStatus.SUBMITTED, List.of());
+        when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
+
+        service.transition(7L, new StatusChangeRequest(ClaimStatus.FOLLOW_UP_SENT, "fu"));
+
+        verify(notificationService, never()).sendClaimSubmitted(any(Claim.class));
     }
 
     @Test
