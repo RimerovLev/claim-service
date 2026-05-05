@@ -52,6 +52,8 @@ public class EmailNotificationService implements NotificationService {
         );
     }
 
+
+
     private void send(String to, String subject, String body) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
