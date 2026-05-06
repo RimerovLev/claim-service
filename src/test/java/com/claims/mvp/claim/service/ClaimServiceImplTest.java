@@ -19,6 +19,7 @@ import com.claims.mvp.claim.model.Flight;
 import com.claims.mvp.claim.model.Issue;
 import com.claims.mvp.claim.mapper.ClaimEntityMapper;
 import com.claims.mvp.claim.mapper.ClaimMapper;
+import com.claims.mvp.claim.service.letter.strategy.*;
 import com.claims.mvp.eligibility.service.EligibilityService;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
 import com.claims.mvp.claim.service.documents.ClaimDocumentsService;
@@ -26,18 +27,13 @@ import com.claims.mvp.claim.service.documents.ClaimDocumentsServiceImpl;
 import com.claims.mvp.claim.service.lifecycle.ClaimLifecycleServiceImpl;
 import com.claims.mvp.claim.service.letter.ClaimLetterService;
 import com.claims.mvp.claim.service.letter.ClaimLetterServiceImpl;
-import com.claims.mvp.claim.service.letter.strategy.CancellationLetterStrategy;
-import com.claims.mvp.claim.service.letter.strategy.DelayLetterStrategy;
-import com.claims.mvp.claim.service.letter.strategy.BaggageDelayedLetterStrategy;
-import com.claims.mvp.claim.service.letter.strategy.MissedConnectionLetterStrategy;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowService;
 import com.claims.mvp.claim.service.workflow.ClaimWorkflowServiceImpl;
-import com.claims.mvp.eligibility.strategy.BaggageDelayedEligibilityStrategy;
-import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
-import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
-import com.claims.mvp.eligibility.strategy.MissedConnectionEligibilityStrategy;
+import com.claims.mvp.eligibility.strategy.*;
 import com.claims.mvp.events.dao.EventsRepository;
-import com.claims.mvp.notifications.NotificationService;
+import com.claims.mvp.notifications.events.ClaimCreatedEvent;
+import com.claims.mvp.notifications.events.ClaimStatusTransitionedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.ObjectMapper;
 import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.dao.UserRepository;
@@ -59,6 +55,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -83,7 +80,7 @@ class ClaimServiceImplTest {
     private com.claims.mvp.claim.mapper.DocumentMapper documentMapper;
 
     @Mock
-    private NotificationService notificationService;
+    private ApplicationEventPublisher eventPublisher;
 
     private ClaimService service;
 
@@ -94,7 +91,8 @@ class ClaimServiceImplTest {
                         new DelayEligibilityStrategy(),
                         new CancellationEligibilityStrategy(),
                         new MissedConnectionEligibilityStrategy(),
-                        new BaggageDelayedEligibilityStrategy()
+                        new BaggageDelayedEligibilityStrategy(),
+                        new BaggageLostEligibilityStrategy()
                 )
         );
         ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
@@ -104,7 +102,8 @@ class ClaimServiceImplTest {
                         new DelayLetterStrategy(),
                         new CancellationLetterStrategy(),
                         new MissedConnectionLetterStrategy(),
-                        new BaggageDelayedLetterStrategy()
+                        new BaggageDelayedLetterStrategy(),
+                        new BaggageLostLetterStrategy()
                 )
         );
 
@@ -122,7 +121,7 @@ class ClaimServiceImplTest {
                 claimMapper,
                 letterService,
                 new ObjectMapper(),
-                notificationService
+                eventPublisher
         );
         lenient().when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(eventsRepository.save(any(ClaimEvents.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -140,31 +139,34 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void createClaim_sendsEmailNotification(){
+    void createClaim_publishesClaimCreatedEvent() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L)));
         service.createClaim(buildCreateRequest(List.of()));
-        verify(notificationService).sendClaimCreated(any());
+        verify(eventPublisher).publishEvent(any(ClaimCreatedEvent.class));
     }
 
     @Test
-    void transition_toSubmitted_sendsEmailNotification(){
+    void transition_toSubmitted_publishesTransitionEvent() {
         Claim claim = existingClaim(ClaimStatus.READY_TO_SUBMIT, List.of(
                 boardingDocument("ticket-1", DocumentTypes.TICKET),
                 boardingDocument("boarding-pass-1", DocumentTypes.BOARDING_PASS)
         ));
         when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
         service.transition(7L, new StatusChangeRequest(ClaimStatus.SUBMITTED, "sent via email"));
-        verify(notificationService).sendClaimSubmitted(any(Claim.class));
+        verify(eventPublisher).publishEvent(any(ClaimStatusTransitionedEvent.class));
     }
 
     @Test
-    void transition_toFollowUp_doesNotSendSubmittedNotification() {
+    void transition_toFollowUp_doesNotPublishSubmittedTransitionEvent() {
         Claim claim = existingClaim(ClaimStatus.SUBMITTED, List.of());
         when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
 
         service.transition(7L, new StatusChangeRequest(ClaimStatus.FOLLOW_UP_SENT, "fu"));
 
-        verify(notificationService, never()).sendClaimSubmitted(any(Claim.class));
+        verify(eventPublisher, never()).publishEvent(
+                argThat((Object e) -> e instanceof ClaimStatusTransitionedEvent evt
+                        && evt.to() == ClaimStatus.SUBMITTED)
+        );
     }
 
     @Test

@@ -8,10 +8,7 @@ import com.claims.mvp.claim.model.Flight;
 import com.claims.mvp.claim.model.Issue;
 import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
-import com.claims.mvp.eligibility.strategy.BaggageDelayedEligibilityStrategy;
-import com.claims.mvp.eligibility.strategy.CancellationEligibilityStrategy;
-import com.claims.mvp.eligibility.strategy.DelayEligibilityStrategy;
-import com.claims.mvp.eligibility.strategy.MissedConnectionEligibilityStrategy;
+import com.claims.mvp.eligibility.strategy.*;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -25,7 +22,8 @@ class EligibilityServiceImplTest {
             new DelayEligibilityStrategy(),
             new CancellationEligibilityStrategy(),
             new MissedConnectionEligibilityStrategy(),
-            new BaggageDelayedEligibilityStrategy()
+            new BaggageDelayedEligibilityStrategy(),
+            new BaggageLostEligibilityStrategy()
     ));
 
 
@@ -203,6 +201,43 @@ class EligibilityServiceImplTest {
     }
 
     @Test
+    void baggageLostEligible_505h() {
+        EligibilityResult result = service.evaluate(
+                baggageLostIssue(505, false),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+        assertThat(result.getEligible()).isTrue();
+        assertThat(result.getCompensationAmount()).isEqualTo(1000);
+    }
+
+    @Test
+    void baggageLostNotEligible_503h() {
+        EligibilityResult result = service.evaluate(
+                baggageLostIssue(503, false),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+        assertThat(result.getRequiredDocuments())
+                .containsExactly(DocumentTypes.BAG_TAG, DocumentTypes.PIR);
+    }
+
+    @Test
+    void baggageLostNotEligible_extraordinaryCircumstances() {
+        EligibilityResult result = service.evaluate(
+                baggageDelayedIssue(24, true),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+    }
+
+    @Test
     void baggageDelayedCompensation_cappedAt30Days() {
         EligibilityResult result = service.evaluate(
                 baggageDelayedIssue(24 * 40, false),
@@ -227,6 +262,14 @@ class EligibilityServiceImplTest {
     private Issue baggageDelayedIssue(Integer baggageDelayHours, boolean extraordinary) {
         Issue issue = new Issue();
         issue.setType(IssueType.BAGGAGE_DELAYED);
+        issue.setBaggageDelayHours(baggageDelayHours);
+        issue.setExtraordinaryCircumstances(extraordinary);
+        return issue;
+    }
+
+    private Issue baggageLostIssue(Integer baggageDelayHours, boolean extraordinary) {
+        Issue issue = new Issue();
+        issue.setType(IssueType.BAGGAGE_LOST);
         issue.setBaggageDelayHours(baggageDelayHours);
         issue.setExtraordinaryCircumstances(extraordinary);
         return issue;

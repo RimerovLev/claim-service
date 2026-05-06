@@ -1,228 +1,303 @@
-# План на неделю — claims-mvp
+# Plans — claims-mvp
 
-5 рабочих дней. Каждый день — самодостаточный чанк: в конце всё компилится, тесты зелёные, можно коммитить.
+---
 
-Цель недели: причесать тех-долг, добавить 2 новых типа кейсов (missed connection + baggage delayed), запустить первый кусок communications layer.
+# Week 1 — ✅ DONE
+
+**Итог:** рефакторинг на стратегии (eligibility + letter), 4 типа кейсов, email-инфраструктура на Spring Events, тесты.
 
 **Прогресс:**
-- [x] Day 1 — Eligibility strategies
-- [x] Day 2 — Letter strategies
-- [x] Day 3 — Missed connection
-- [x] Day 4 — Baggage delayed
-- [ ] Day 5 — Email starter
+- [x] Day 1 — Eligibility strategies (DELAY, CANCELLATION)
+- [x] Day 2 — Letter strategies (DELAY, CANCELLATION)
+- [x] Day 3 — Missed connection end-to-end
+- [x] Day 4 — Baggage delayed (Montreal Convention)
+- [x] Day 5 + post — Email starter + event refactor + тесты
+
+Coverage: 4/6 claim types. Email-слой работает, нотификации при создании и submit уходят.
 
 ---
 
-## Day 1 — Cleanup + начало рефакторинга на стратегии — ✅ DONE
+# Week 2 — Phase 2 завершение + Phase 1 продолжение + Phase 3 старт
 
-**Цель.** Зафиксировать предыдущую работу коммитом и подготовить почву для расширения типов кейсов.
+**Цель недели:**
+- Закрыть Phase 2 (6/6 типов кейсов).
+- Сделать письмо реально уходящим в авиакомпанию (Phase 1 — главный gap).
+- Запустить базовый follow-up scheduler (Phase 3 — первый шаг к автоматизации).
+- Подключить фронт-прототип к реальному API.
+
+**Прогресс:**
+- [ ] Day 1 — BAGGAGE_LOST
+- [ ] Day 2 — BAGGAGE_DAMAGED
+- [ ] Day 3 — Auto-send letter to airline on SUBMIT
+- [ ] Day 4 — Follow-up scheduler
+- [ ] Day 5 — Frontend → real API
+
+---
+
+## Day 1 — BAGGAGE_LOST (Phase 2)
+
+**Цель.** Добавить шестой тип кейса — потеря багажа под Montreal Convention. Архитектура готова: два новых `@Component`-класса, ничего лишнего.
+
+**Контекст.** BAGGAGE_LOST отличается от BAGGAGE_DELAYED:
+- Порог: > 21 дня без возврата = официально "потерян" (Montreal, Article 17).
+- Компенсация: фиксированный лимит Montreal ≈ 1131 SDR. Для MVP — 1000 EUR flat.
+- Документы: PIR mandatory + BAG_TAG + желательно receipts за вещи.
+- Письмо: Montreal Convention Article 17 (не 19), обращение к Baggage Claims Department.
 
 **Задачи:**
 
-1. [x] **Cleanup дебага и закрытие предыдущего рефакторинга**
-   - [x] Удалить `@Slf4j` + `log.error(...)` из `GlobalExceptionHandler.handleRuntimeException`.
-   - [x] `./mvnw clean test` — всё зелёное.
-   - [x] Коммит refactoring-пачки.
+1. **Расширить `IssueType`** (~5 мин)
+   - Добавить `BAGGAGE_LOST` в enum.
 
-2. [x] **Начало рефакторинга `EligibilityService` на стратегии**
-   - [x] Интерфейс `EligibilityStrategy` создан.
-   - [x] `DelayEligibilityStrategy` — логика DELAY из EU 261 вынесена.
-   - [x] `CancellationEligibilityStrategy` — логика CANCELLATION вынесена.
-   - [x] `EligibilityServiceImpl` переписан на делегата с `Map<IssueType, EligibilityStrategy>`.
-   - [x] `EligibilityServiceImplTest` и `ClaimServiceImplTest` адаптированы (передача списка стратегий в конструктор).
-   - [x] Все тесты зелёные.
+2. **`BaggageLostEligibilityStrategy`** (~1.5 ч)
+   ```java
+   // supportedType() → BAGGAGE_LOST
+   // eligible: !extraordinary && baggageDelayHours > 504  (21 * 24)
+   // compensationAmount: 1000 EUR (flat, Montreal SDR лимит)
+   // requiredDocuments: List.of(PIR, BAG_TAG)
+   ```
+   - Добавить `@Component`.
+
+3. **`BaggageLostLetterStrategy`** (~45 мин)
+   - Subject: `"Baggage Loss Compensation Claim — <flight> (<route>)"`.
+   - Body: Montreal Convention Article 17, Baggage Claims Department, список вложений.
+   - Добавить `@Component`.
+
+4. **Тесты** (~1.5 ч)
+   - `EligibilityServiceImplTest`: 3 юнит-теста (eligible > 504h, not eligible ≤ 504h, extraordinary).
+   - `ClaimServiceImplTest.setUp()`: добавить обе стратегии в списки.
+   - `ClaimIntegrationTest`: интеграционный тест с `buildBaggageLostIssue(600)` — eligible, letter содержит "Article 17".
+
+5. **Прогон тестов + коммит** (~15 мин)
+   - `./mvnw clean test`.
+   - `feat(claim): add BAGGAGE_LOST claim type`.
 
 **Acceptance criteria:**
-- [x] `EligibilityServiceImpl` стал thin-делегатом без бизнес-логики.
-- [x] Логика DELAY и CANCELLATION разнесена по двум классам.
-- [x] Регрессия пройдена.
+- `BAGGAGE_LOST` проходит через весь API (create → eligibility → letter) без изменений в существующих сервисах.
+- `EligibilityServiceImpl` и `ClaimLetterServiceImpl` не тронуты.
+- Минимум 3 юнит-теста + 1 интеграционный.
 
-**Замечания по итогам:**
-- `calculateCompensationAmount` оставлен в `EligibilityServiceImpl` для backward compatibility интерфейса. Каждая стратегия владеет собственной формулой расчёта.
-- При добавлении нового типа кейса достаточно создать один `@Component` — сервис менять не надо.
+**Ловушки:**
+- Не забыть `@Component` на обоих классах.
+- `baggageDelayHours` — реиспользуем существующее поле (как для BAGGAGE_DELAYED): смысл "часы с момента потери/розыска" тот же.
+- Проверить порог: 21 день = 504 часа, condition `> 504` (строго больше).
 
 ---
 
-## Day 2 — Стратегии для `ClaimLetterService` + регрессия — ✅ DONE
+## Day 2 — BAGGAGE_DAMAGED (Phase 2)
 
-**Цель.** Доделать рефакторинг: разнести генерацию писем по стратегиям, как сделали для eligibility.
+**Цель.** Последний тип кейса — повреждённый багаж. После этого Phase 2 закрыта (6/6).
 
-**Результат:** см. [docs/daily/2026-05-03.md](daily/2026-05-03.md). Logic разнесена по `DelayLetterStrategy` и `CancellationLetterStrategy`, `ClaimLetterServiceImpl` стал делегатом, тесты зелёные.
+**Контекст.** BAGGAGE_DAMAGED:
+- Правовая база: Montreal Convention Article 17 §2.
+- Срок подачи: **7 дней** с момента получения багажа (жёсткое ограничение).
+- Компенсация: возмещение реального ущерба, лимит ≈ 1131 SDR. Для MVP — 800 EUR flat (разумная средняя по практике).
+- Документы: PIR mandatory + PHOTO (фото повреждений).
+- Письмо: Article 17 §2, Baggage Claims Department.
 
 **Задачи:**
 
-1. **`LetterStrategy` интерфейс** (~2 часа)
-   - Создать `com.claims.mvp.claim.service.letter.strategy.LetterStrategy`:
-     ```java
-     public interface LetterStrategy {
-         IssueType supportedType();
-         LetterResponse generate(Claim claim);
-     }
+1. **Расширить `IssueType`** (~5 мин)
+   - Добавить `BAGGAGE_DAMAGED` в enum.
+
+2. **V3 миграция Flyway** (~20 мин)
+   - `V3__add_baggage_damage_fields.sql`:
+     ```sql
+     alter table issues add column days_since_delivery integer;
      ```
-   - `DelayLetterStrategy` и `CancellationLetterStrategy` — перенести соответствующие куски `switch` из текущего `ClaimLetterServiceImpl`.
-   - `ClaimLetterServiceImpl` инжектит `List<LetterStrategy>`, строит мапу, делегирует.
+   - Поле для проверки срока подачи (7 дней).
+   - Добавить `daysSinceDelivery` в `Issue` entity + `IssueRequest` DTO.
 
-2. **Регрессия** (~1 час)
-   - Прогнать все тесты `./mvnw clean test`.
-   - Если что-то падает — проверить инициализацию мапы стратегий, особенно в юнит-тестах с `@Mock`. Возможно, придётся вручную создавать стратегии в `setUp()` (как мы делали для `ClaimWorkflowServiceImpl`).
+3. **`BaggageDamagedEligibilityStrategy`** (~1.5 ч)
+   ```java
+   // supportedType() → BAGGAGE_DAMAGED
+   // eligible: !extraordinary && daysSinceDelivery != null && daysSinceDelivery <= 7
+   // compensationAmount: 800 EUR flat
+   // requiredDocuments: List.of(PIR, PHOTO)
+   ```
+   - `@Component`.
 
-3. **Документация в коде** (~30 мин)
-   - Краткий Javadoc на `EligibilityStrategy` и `LetterStrategy` — пояснить, что новый тип кейса добавляется через создание новой стратегии.
+4. **`BaggageDamagedLetterStrategy`** (~45 мин)
+   - Subject: `"Baggage Damage Compensation Claim — <flight> (<route>)"`.
+   - Body: Montreal Convention Article 17 §2, упомянуть срок подачи, Baggage Claims Department.
+   - `@Component`.
+
+5. **Тесты** (~1.5 ч)
+   - `EligibilityServiceImplTest`: 4 теста (eligible ≤ 7 дней, not eligible > 7 дней, extraordinary, null daysSinceDelivery).
+   - `ClaimServiceImplTest.setUp()`: обе стратегии.
+   - `ClaimIntegrationTest`: интеграционный тест, letter содержит "Article 17" и "damage".
+
+6. **Прогон тестов + коммит** (~15 мин)
+   - `./mvnw clean test`.
+   - `feat(claim): add BAGGAGE_DAMAGED claim type — Phase 2 complete`.
 
 **Acceptance criteria:**
-- `ClaimLetterServiceImpl` без `switch (issue.getType())`.
-- Все интеграционные тесты зелёные.
-- Юнит-тесты адаптированы.
+- Coverage: **6/6** типов (DELAY, CANCELLATION, MISSED_CONNECTION, BAGGAGE_DELAYED, BAGGAGE_LOST, BAGGAGE_DAMAGED).
+- V3 миграция применяется в TestContainers автоматически.
+- Все тесты зелёные.
 
-**Buffer:** если день закончится раньше — начать Day 3 (research правил для missed connection).
-
----
-
-## Day 3 — Missed connection — ✅ DONE
-
-**Результат:** см. [docs/daily/2026-05-03.md](daily/2026-05-03.md) (секция Day 3). Тип `MISSED_CONNECTION` добавлен через две новые стратегии без изменения существующих сервисов — архитектурный паттерн стратегий доказал работоспособность.
+**Ловушки:**
+- Имя таблицы в миграции — `issues` (множ.).
+- `daysSinceDelivery` без `@Column` — Hibernate авто-конвертит в `days_since_delivery`.
+- `null`-проверка в `eligible`: если `daysSinceDelivery == null`, claim не eligible (нет данных → нельзя подтвердить срок).
 
 ---
 
-### Исходный план Day 3 (для истории)
+## Day 3 — Auto-send letter to airline (Phase 1)
 
-**Цель.** Добавить третий тип кейса end-to-end. На нём проверим, что архитектура стратегий действительно даёт лёгкое расширение.
+**Цель.** Сейчас при переходе в `SUBMITTED` уведомление уходит только пользователю. Претензия в авиакомпанию не отправляется — ключевой gap Phase 1. Это самый важный шаг: без него продукт генерирует письмо но никуда не отправляет.
+
+**Контекст:**
+- `ClaimLifecycleServiceImpl.transition` публикует `ClaimStatusTransitionedEvent`.
+- `EmailNotificationService.onClaimTransitioned` уже реагирует на SUBMITTED.
+- Сейчас `sendClaimSubmitted` шлёт письмо пользователю ("your claim has been submitted").
+- Нужно: при SUBMITTED также отправить претензионное письмо (`ClaimLetterService.generateLetter`) на email авиакомпании.
 
 **Задачи:**
 
-1. **Расширить enum** (~10 мин)
-   - `IssueType.MISSED_CONNECTION`.
-   - `Issue.connectionDelayMinutes` или отдельные поля (зависит от правил).
+1. **Airline email lookup** (~30 мин)
+   - Добавить `Map<String, String> airlineEmails` в `EmailNotificationService` — простой словарь `airline name → email`.
+   - Пример: `"Lufthansa" → "claims@lufthansa.com"`, `"default" → "claims@airline.com"`.
+   - Альтернатива: `@Value`-список в `application.yaml`. Для MVP — hardcoded Map в конструкторе.
 
-2. **Eligibility-стратегия** (~2 часа)
-   - Правила EU 261 для missed connection: компенсация полагается, если стыковка пропущена из-за задержки/отмены первого сегмента, итоговое опоздание ≥ 3 часов.
-   - Новый `MissedConnectionEligibilityStrategy` с этими правилами.
-   - Required documents — те же что для DELAY/CANCELLATION плюс boarding pass второго сегмента.
+2. **`sendClaimLetterToAirline` метод** (~45 мин)
+   - Добавить в `NotificationService` интерфейс: `void sendClaimLetterToAirline(Claim claim)`.
+   - Реализовать в `EmailNotificationService`:
+     - Получить `LetterResponse` через... проблема: `EmailNotificationService` не знает о `ClaimLetterService`.
+     - Решение: инжектировать `ClaimLetterService` в `EmailNotificationService` или сделать это в `onClaimTransitioned` event payload'ом.
+     - Чище: добавить `letterBody` в `ClaimStatusTransitionedEvent` (опционально) или инжектировать `ClaimLetterService`.
+   - Тело письма = `LetterResponse.body` + From = `claim.getUser().getEmail()` (пассажир отправляет).
 
-3. **Letter-стратегия** (~1 час)
-   - `MissedConnectionLetterStrategy` — шаблон письма с упоминанием обоих сегментов и расчёта итоговой задержки.
+3. **Подключить к listener'у** (~20 мин)
+   - В `onClaimTransitioned` при `event.to() == SUBMITTED` вызвать `sendClaimLetterToAirline(event.claim())` после `sendClaimSubmitted`.
 
-4. **Тесты** (~2 часа)
-   - Юнит-тесты для `MissedConnectionEligibilityStrategy`: eligible / not eligible / extraordinary.
-   - Интеграционный тест: создать claim, проверить eligibility и компенсацию.
-   - Тест на letter generation с правильным форматом.
+4. **Тесты** (~1 ч)
+   - `EmailNotificationServiceTest`: тест что при SUBMITTED вызывается `mailSender.send` дважды (один раз пользователю, один авиакомпании).
+   - `ClaimIntegrationTest`: тест `submitClaim_sendsLetterToAirline` — `verify(mailSender, times(2)).send(any())`.
+
+5. **Коммит** — `feat(notifications): auto-send claim letter to airline on SUBMITTED`.
 
 **Acceptance criteria:**
-- Новый тип кейса работает через тот же API, что DELAY/CANCELLATION.
-- 3+ юнит-теста для стратегии.
-- 1 интеграционный тест для full flow.
+- POST transition SUBMITTED → два email: один пользователю, один в авиакомпанию.
+- Email авиакомпании содержит тело из `ClaimLetterService.generateLetter`.
+- Если авиакомпания не в словаре — письмо на дефолтный адрес (graceful fallback, не NPE).
 
-**Risks:**
-- Правила missed connection в EU 261 не такие очевидные. Если есть сомнения — посмотреть статью 5 регулирования или просто покрыть базовый сценарий.
-
----
-
-## Day 4 — Baggage delayed (первый багажный кейс) — ✅ DONE
-
-**Результат:** см. [docs/daily/2026-05-03.md](daily/2026-05-03.md) (секция Day 4). BAGGAGE_DELAYED добавлен через две новые стратегии под Montreal Convention 1999, V2 миграция Flyway применилась. Архитектура подтвердилась на принципиально другом правовом фреймворке — общего с EU 261 кейсами почти ничего нет.
+**Ловушки:**
+- Circular dependency: если `EmailNotificationService` инжектирует `ClaimLetterService`, а тот где-то тянет notifications — будет цикл. Проверить до написания кода.
+- `@TransactionalEventListener(AFTER_COMMIT)` — `ClaimLetterService` нужны данные claim, они уже persisted, EntityGraph не нужен (claim уже загружен в event).
 
 ---
 
-### Исходный план Day 4 (для истории)
+## Day 4 — Follow-up scheduler (Phase 3 старт)
 
-**Цель.** Расширить продукт за пределы EU 261 — багажные кейсы регулирует Montreal Convention. Это другая правовая база, другая логика компенсации (не таблица по дистанции, а лимит ~1300 SDR).
+**Цель.** Первый шаг к автоматизации: если claim в статусе `SUBMITTED` больше 14 дней без ответа — автоматически перейти в `FOLLOW_UP_SENT` и послать follow-up письмо. Продукт становится агентом.
+
+**Контекст:**
+- Текущая модель: `FOLLOW_UP_SENT` ставится вручную через `/transition`.
+- Нужно: cron-job проверяет раз в день — кандидаты на follow-up.
+- Данные для проверки: `ClaimEvents` с `type=LETTER_SUBMITTED` (фиксируется при transition → SUBMITTED).
 
 **Задачи:**
 
-1. **Расширить модель** (~1 час)
-   - `IssueType.BAGGAGE_DELAYED`.
-   - `Issue.baggageDelayHours` или поля под багажные обстоятельства.
-   - `DocumentTypes` уже содержит `PIR`, `BAG_TAG`, `PHOTO` — проверить, не нужны ли новые (например, `RECEIPTS` для расходов на замену вещей).
+1. **Добавить `updatedAt` в `Claim`** (~20 мин) или использовать `ClaimEvents`.
+   - Лучше читать из `ClaimEvents`: найти последнее событие `LETTER_SUBMITTED` и сравнить `createdAt` с `now() - 14 days`.
+   - Добавить в `EventsRepository`: `List<Long> findClaimIdsEligibleForFollowUp(LocalDateTime threshold)` (native или JPQL-запрос).
 
-2. **Eligibility-стратегия** (~2.5 часа)
-   - `BaggageDelayedEligibilityStrategy`:
-     - Eligibility: если задержка ≥ 21 день — потеря (другой кейс), если меньше — delay.
-     - Required documents: PIR mandatory, receipts, baggage tag.
-     - Компенсация: возмещение reasonable expenses в пределах ~1300 SDR (для MVP — простая модель: до X EUR без чеков, по чекам — что меньше).
-   - Compensation calculation отличается принципиально — не привязан к distanceKm.
+2. **`FollowUpSchedulerService`** (~1.5 ч)
+   ```java
+   @Service
+   @RequiredArgsConstructor
+   public class FollowUpSchedulerService {
+       private final ClaimRepository claimRepository;
+       private final EventsRepository eventsRepository;
+       private final ClaimService claimService;
+       // ...
+       @Scheduled(cron = "0 0 9 * * *")  // каждый день в 09:00
+       @Transactional
+       public void runFollowUpCheck() {
+           // найти SUBMITTED claims старше 14 дней
+           // для каждого: claimService.transition(id, FOLLOW_UP_SENT)
+       }
+   }
+   ```
+   - Включить `@EnableScheduling` в `ClaimsMvpApplication`.
+   - Для dev: добавить `spring.task.scheduling.enabled=true` в properties (по умолчанию включено).
 
-3. **Letter-стратегия** (~1 час)
-   - `BaggageDelayedLetterStrategy`: упомянуть Montreal Convention статью 19, перечислить документы.
+3. **Тест на scheduler** (~1 ч)
+   - Юнит-тест `FollowUpSchedulerServiceTest`: создать claim с SUBMITTED-событием > 14 дней назад, вызвать `runFollowUpCheck()` напрямую, verify что `claimService.transition` был вызван.
+   - Важно: тест вызывает метод напрямую (не через cron), mock `ClaimService`.
 
-4. **Тесты** (~2 часа)
-   - Юнит-тесты на стратегию: разные дни задержки, наличие/отсутствие чеков.
-   - Интеграционный тест.
+4. **dev-режим: форсированный запуск** (~20 мин)
+   - Добавить `@GetMapping("/admin/scheduler/follow-up")` — ручной trigger для dev-проверки.
+   - Только в dev-профиле.
+
+5. **Коммит** — `feat(scheduler): auto follow-up for SUBMITTED claims after 14 days`.
 
 **Acceptance criteria:**
-- Coverage расширен до 4 типов: DELAY, CANCELLATION, MISSED_CONNECTION, BAGGAGE_DELAYED.
-- Тесты зелёные.
+- Scheduler запускается по расписанию.
+- Claim в SUBMITTED > 14 дней → автоматически переходит в FOLLOW_UP_SENT.
+- Follow-up email уходит (через существующий `EmailNotificationService`).
+- Unit-тест покрывает логику выбора кандидатов.
 
-**Risks:**
-- SDR/EUR конвертация — для MVP можно захардкодить курс или взять хардкод-таблицу. Реальный курс через API — задача для Phase 8.
-- `Flight.distanceKm` для багажных кейсов нерелевантен — eligibility-стратегия должна это учитывать.
+**Ловушки:**
+- `@Scheduled` + `@Transactional` в одном классе — может не работать из-за Spring proxy. Лучше: scheduler-метод без `@Transactional`, транзакция внутри вызываемого сервиса.
+- Idempotency: если scheduler запустился дважды подряд (перезапуск), один claim не должен получить два follow-up. Проверка: после перехода в FOLLOW_UP_SENT он уже не в SUBMITTED — повторный запуск его не подхватит.
+- Для prod — нужен `ShedLock` (multi-instance). Для MVP/dev — не нужен.
 
 ---
 
-## Day 5 — Email starter (Phase 1, первый кусок)
+## Day 5 — Frontend → Real API (Phase 5 старт)
 
-**Цель.** Запустить базовую email-инфраструктуру: при создании claim уходит уведомление пользователю. Это первый шаг к реальному «агенту, который что-то делает».
+**Цель.** Подключить `app.html` к реальному бэкенду. Вместо хардкоженных данных — `fetch('/api/claims')`. Это делает прототип демо-пригодным.
+
+**Контекст:**
+- `app.html` лежит в `static/` — Spring Boot отдаёт его как статику напрямую.
+- API доступен на том же origin → CORS не нужен.
+- Эндпоинты: `GET /api/claims?page=0&size=20`, `GET /api/claims/{id}`, `GET /api/claims/{id}/letter`, `POST /api/claims/{id}/transition`.
 
 **Задачи:**
 
-1. **Email-конфиг** (~1 час)
-   - Добавить зависимость `spring-boot-starter-mail` в `pom.xml`.
-   - В `application.yaml`/`.properties` настроить SMTP (на локальной разработке — MailHog или Mailpit, в Docker; для prod — placeholder под SendGrid/SES).
-   - Профили `dev` (MailHog) и `prod` (env vars).
+1. **Загрузка списка claims** (~1 ч)
+   - Заменить `CLAIMS` массив на `async function fetchClaims()` → `fetch('/api/claims?size=20')`.
+   - Парсить `response.content[]` (Page<ClaimResponse>).
+   - Показывать loading-state пока грузится.
 
-2. **`NotificationService` интерфейс + Email-реализация** (~2 часа)
-   - `com.claims.mvp.notifications.NotificationService`:
-     ```java
-     public interface NotificationService {
-         void sendClaimCreated(Claim claim);
-         void sendClaimSubmitted(Claim claim);
-     }
-     ```
-   - `EmailNotificationService implements NotificationService` — собирает текст из шаблонов и отправляет через `JavaMailSender`.
-   - Шаблоны: для MVP можно прямо в коде или Thymeleaf templates.
+2. **Детальная панель — реальные данные** (~45 мин)
+   - При клике на строку: `fetch('/api/claims/{id}')` для метаданных + `fetch('/api/claims/{id}/letter')` для письма.
+   - `Promise.all([...])` чтобы не ждать последовательно.
 
-3. **Хук в lifecycle** (~30 мин)
-   - В `ClaimLifecycleServiceImpl.createClaim` вызывать `notificationService.sendClaimCreated(claim)` после `save`.
-   - В `ClaimLifecycleServiceImpl.transition` при target=SUBMITTED — `sendClaimSubmitted(claim)`.
+3. **Submit из UI** (~30 мин)
+   - Кнопка "Submit claim" в детальной панели делает `POST /api/claims/{id}/transition` с `{ status: "SUBMITTED", note: "submitted from UI" }`.
+   - После успеха — перезагружать детальную панель.
 
-4. **Локальное тестирование** (~1 час)
-   - Запустить MailHog локально (`docker run -p 1025:1025 -p 8025:8025 mailhog/mailhog`).
-   - Создать claim через `POST /api/claims`, проверить что письмо появилось в MailHog UI на `localhost:8025`.
+4. **Error handling** (~30 мин)
+   - 409 при неверном переходе → показывать inline сообщение в панели.
+   - 404 → "Claim not found".
+   - Network error → retry-сообщение.
 
-5. **Интеграционные тесты** (~1.5 часа)
-   - Подменить `NotificationService` на mock в тестах, чтобы не слать реальные письма.
-   - Verify mock был вызван при `createClaim` и `transition` к SUBMITTED.
+5. **Dashboard stats** (~30 мин)
+   - `GET /api/claims?size=100` → считать статистику из response (или добавить `/api/claims/stats` эндпоинт — опционально).
+
+6. **Коммит** — `feat(frontend): connect app.html to real API`.
 
 **Acceptance criteria:**
-- Создание claim → пользователь получает email.
-- Submission → письмо «ваше обращение отправлено» (для MVP — пользователю, не в авиакомпанию ещё).
-- Тесты mock'ают NotificationService.
+- `localhost:8080/app.html` показывает реальные claims из БД.
+- Детальная панель показывает реальное письмо из `ClaimLetterService`.
+- Кнопка Submit меняет статус через API.
+- Ошибки обрабатываются (не белый экран).
 
-**Buffer:**
-- Если время есть — добавить inbound email mock, чтобы заложить почву для AI Phase 4.
-- Шаблоны можно подкрасить через Thymeleaf, но не обязательно.
-
----
-
-## Что в конце недели
-
-После 5 дней:
-- ✅ Тех-долг рефакторинга снят, новый тип добавляется через 1 файл-стратегию.
-- ✅ Coverage: 4 типа кейсов вместо 2 (66% от целевых 6 в ТЗ).
-- ✅ Communications: первая отправка email пользователю работает, инфраструктура готова к расширению.
-- ✅ Архитектурно: видно как добавлять новые типы и новые типы нотификаций.
-
-Не сделано в этой неделе (на следующие итерации):
-- Auto-send претензии **в авиакомпанию** (нужно решить — отправлять напрямую или только готовить).
-- Inbound email parsing.
-- Scheduler для follow-up.
-- Денежные кейсы (lost / damaged baggage) — добавить за 1-1.5 дня по аналогии с delayed.
-- Frontend.
+**Ловушки:**
+- `Page<ClaimResponse>` возвращает Spring-формат с `content`, `totalPages` и т.д. — парсить именно `data.content`.
+- Dates из API — ISO-строки, не JS Date объекты. `new Date(str).toLocaleDateString()` для отображения.
+- После Submit кнопка должна блокироваться (disable) чтобы не слать два раза.
 
 ---
 
-## Заметки про режим работы
+## Что в конце Week 2
 
-- Каждый день стартует с `git pull` + `./mvnw clean test`.
-- Каждый день заканчивается коммитом со зелёными тестами.
-- Если день не укладывается — переносим хвост на буфер следующего дня. Не накапливать «полу-готовое».
-- Если что-то идёт сильно не так (например, на Day 4 правила Montreal оказываются сложнее, чем ожидалось) — лучше временно сократить scope до базового сценария, закоммитить, разобрать остаток отдельно.
+- ✅ Phase 2 **полностью закрыта**: 6/6 типов кейсов.
+- ✅ Phase 1 **значимо продвинута**: письмо реально уходит в авиакомпанию.
+- ✅ Phase 3 **старт**: первый автоматический триггер работает.
+- ✅ Phase 5 **старт**: фронт подключён к реальному API.
+
+После Week 2: Phase 3 (escalation, deadline tracking), Phase 1 (inbound email parsing), Phase 4 (AI layer).

@@ -21,6 +21,51 @@
 
 ---
 
+## Прогресс (обновлено 2026-05-06)
+
+### Phase 1 — Communications layer 🔄 В процессе
+
+Сделано:
+- ✅ `spring-boot-starter-mail` подключён, SMTP-конфиг (MailHog dev / env vars prod).
+- ✅ `NotificationService` интерфейс + `EmailNotificationService` реализация.
+- ✅ Нотификация пользователю при создании claim (`ClaimCreatedEvent`).
+- ✅ Нотификация пользователю при переходе в SUBMITTED (`ClaimStatusTransitionedEvent`).
+- ✅ Event-based архитектура: `ApplicationEventPublisher` + `@TransactionalEventListener(AFTER_COMMIT)` — eventual consistency гарантирована.
+- ✅ Map-диспетчер для transition-нотификаций — добавление нового статуса = одна строка в Map.
+
+Не сделано (Week 2):
+- ❌ Auto-send претензии в авиакомпанию при SUBMITTED (Day 3 Week 2).
+- ❌ Inbound email parsing.
+- ❌ Telegram / WhatsApp нотификации.
+
+### Phase 2 — Coverage breadth 🔄 4/6 типов
+
+- ✅ `DELAY` — EU 261/2004, distance-based compensation.
+- ✅ `CANCELLATION` — EU 261/2004, notice ≤ 14 дней.
+- ✅ `MISSED_CONNECTION` — EU 261/2004, итоговое опоздание ≥ 3ч.
+- ✅ `BAGGAGE_DELAYED` — Montreal Convention Art. 19, per-day allowance.
+- ❌ `BAGGAGE_LOST` — Montreal Convention Art. 17 (Day 1 Week 2).
+- ❌ `BAGGAGE_DAMAGED` — Montreal Convention Art. 17 §2 (Day 2 Week 2).
+
+Архитектурный тех-долг из Phase 2 (был в roadmap) — **закрыт**:
+- ✅ `EligibilityServiceImpl` разбит на стратегии (`Map<IssueType, EligibilityStrategy>`).
+- ✅ `ClaimLetterServiceImpl` разбит на стратегии (`Map<IssueType, LetterStrategy>`).
+
+### Phase 3 — Automation / Follow-up scheduler ❌ Не начата
+
+Планируется Day 4 Week 2 (базовый follow-up cron).
+
+### Phase 4 — AI / LLM layer ❌ Не начата
+
+### Phase 5 — Frontend ❌ Не начата (есть статический прототип)
+
+Сделано вне фазы:
+- ✅ Thymeleaf home page (`/`) — описание продукта, 4 типа кейсов, status check.
+- ✅ Статический прототип `app.html` — Dashboard + Claims list + New claim form + Detail panel.
+- Подключение к реальному API — Day 5 Week 2.
+
+---
+
 ## Phase 1 — Communications layer
 
 **Цель.** Замкнуть петлю «AI готовит письмо → оно реально уходит в авиакомпанию» и пользователь получает уведомления о ходе кейса. Без этого продукт остаётся «генератором текста», а не агентом.

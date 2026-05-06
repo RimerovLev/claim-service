@@ -1,22 +1,67 @@
 package com.claims.mvp.notifications;
 
+import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.model.Claim;
+import com.claims.mvp.notifications.events.ClaimCreatedEvent;
+import com.claims.mvp.notifications.events.ClaimStatusTransitionedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.EnumMap;
+import java.util.Map;
+import java.util.function.Consumer;
+
+/**
+ * Sends emails in reaction to claim lifecycle events.
+ * <p>
+ * Subscribes to {@link ClaimCreatedEvent} and {@link ClaimStatusTransitionedEvent}
+ * with {@link TransactionPhase#AFTER_COMMIT} — so notifications fire only after
+ * the originating transaction has committed successfully. This avoids the
+ * "email sent but claim not persisted" inconsistency.
+ * <p>
+ * Transition-time notifications are dispatched through the
+ * {@link #transitionHandlers} map. To add a new notification for a status
+ * (e.g. APPROVED), add one entry — no changes needed elsewhere.
+ */
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class EmailNotificationService implements NotificationService {
 
     private final JavaMailSender mailSender;
+    private final String from;
+    private final Map<ClaimStatus, Consumer<Claim>> transitionHandlers;
 
-    @Value("${app.mail.from}")
-    private String from;
+    public EmailNotificationService(JavaMailSender mailSender,
+                                    @Value("${app.mail.from}") String from) {
+        this.mailSender = mailSender;
+        this.from = from;
+        this.transitionHandlers = Map.of(
+                ClaimStatus.SUBMITTED, this::sendClaimSubmitted
+                // future: ClaimStatus.APPROVED, this::sendClaimApproved
+                //         ClaimStatus.REJECTED, this::sendClaimRejected
+                //         ClaimStatus.PAID,     this::sendClaimPaid
+        );
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onClaimCreated(ClaimCreatedEvent event) {
+        sendClaimCreated(event.claim());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onClaimTransitioned(ClaimStatusTransitionedEvent event) {
+        Consumer<Claim> handler = transitionHandlers.get(event.to());
+        if (handler != null) {
+            handler.accept(event.claim());
+        }
+    }
 
     @Override
     public void sendClaimCreated(Claim claim) {
@@ -51,8 +96,6 @@ public class EmailNotificationService implements NotificationService {
                 )
         );
     }
-
-
 
     private void send(String to, String subject, String body) {
         try {

@@ -20,10 +20,13 @@ import com.claims.mvp.events.dao.EventsRepository;
 import com.claims.mvp.events.dto.response.EventsResponse;
 import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.notifications.NotificationService;
+import com.claims.mvp.notifications.events.ClaimCreatedEvent;
+import com.claims.mvp.notifications.events.ClaimStatusTransitionedEvent;
 import com.claims.mvp.user.dao.UserRepository;
 import com.claims.mvp.user.model.User;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -81,7 +84,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     private final ClaimMapper claimMapper;
     private final ClaimLetterService claimLetterService;
     private final ObjectMapper objectMapper;
-    private final NotificationService notificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Override
@@ -110,11 +113,10 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
 
         claim.setDocuments(documentsService.mapForCreate(request.getDocuments(), claim));
 
-        // Recalculate derived fields in one place to keep create/update consistent.
         recalcDerivedFields(claim);
 
         claimRepository.save(claim);
-        notificationService.sendClaimCreated(claim);
+        eventPublisher.publishEvent(new ClaimCreatedEvent(claim));
         return claimMapper.toResponse(claim);
     }
 
@@ -125,7 +127,6 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         // if a block is missing (null) we keep the existing data unchanged.
         Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
-
 
         workflowService.assertEditable(claim.getStatus());
 
@@ -178,11 +179,12 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     @Override
     public ClaimResponse transition(Long id, StatusChangeRequest request) {
         ClaimStatus targetStatus = request.getStatus();
-        if(targetStatus == null){
+        if (targetStatus == null) {
             throw new IllegalArgumentException("Status must not be null");
         }
         Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        ClaimStatus fromStatus = claim.getStatus();
 
         workflowService.assertTransitionAllowed(claim.getStatus(), targetStatus);
 
@@ -197,9 +199,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         claimRepository.save(claim);
         eventsRepository.save(claimEvents);
 
-        if(targetStatus == ClaimStatus.SUBMITTED){
-            notificationService.sendClaimSubmitted(claim);
-        }
+        eventPublisher.publishEvent(new ClaimStatusTransitionedEvent(claim, fromStatus, targetStatus));
 
         return claimMapper.toResponse(claim);
     }

@@ -1,8 +1,12 @@
 # claims-mvp
 
+## Agent handoff
+
+**Read this first if you are a new model/session:** [docs/agent-handoff.md](docs/agent-handoff.md). It captures working format, tone, current in-progress task, common pitfalls.
+
 ## Where we are right now
 
-**Latest day:** [docs/daily/2026-05-03.md](docs/daily/2026-05-03.md)
+**Latest day:** [docs/daily/2026-05-06.md](docs/daily/2026-05-06.md)
 **Current week plan:** [docs/week-plan.md](docs/week-plan.md)
 **Architecture map:** [docs/architecture-overview.md](docs/architecture-overview.md)
 **Long-term roadmap:** [docs/roadmap.md](docs/roadmap.md)

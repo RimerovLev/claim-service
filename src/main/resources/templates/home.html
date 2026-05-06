@@ -1,10 +1,384 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Claims MVP</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClaimsMVP — Airline Compensation</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            --bg: #ffffff;
+            --bg-secondary: #f7f6f3;
+            --text: #1a1a1a;
+            --text-muted: #6b6b6b;
+            --text-faint: #9b9b9b;
+            --border: rgba(0,0,0,0.12);
+            --border-hover: rgba(0,0,0,0.25);
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --blue-bg: #E6F1FB;
+            --blue-text: #0C447C;
+            --blue-btn: #185FA5;
+            --amber-bg: #FAEEDA;
+            --amber-text: #633806;
+            --teal-bg: #E1F5EE;
+            --teal-text: #085041;
+            --coral-bg: #FAECE7;
+            --coral-text: #4A1B0C;
+        }
+
+        body {
+            font-family: var(--font);
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* ── Nav ── */
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 32px;
+            border-bottom: 0.5px solid var(--border);
+        }
+
+        .nav-logo {
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: -0.3px;
+        }
+
+        .nav-logo span {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-decoration: none;
+        }
+
+        .nav-links a:hover { color: var(--text); }
+
+        /* ── Hero ── */
+        .hero {
+            padding: 56px 32px 48px;
+            border-bottom: 0.5px solid var(--border);
+            max-width: 760px;
+        }
+
+        .eyebrow {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            margin-bottom: 14px;
+        }
+
+        .hero h1 {
+            font-size: 32px;
+            font-weight: 500;
+            line-height: 1.2;
+            letter-spacing: -0.5px;
+            margin-bottom: 16px;
+        }
+
+        .hero p {
+            font-size: 15px;
+            color: var(--text-muted);
+            line-height: 1.65;
+            max-width: 520px;
+            margin-bottom: 28px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* ── Buttons ── */
+        .btn-primary {
+            background: var(--blue-btn);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary:hover { opacity: 0.9; }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 0.5px solid var(--border-hover);
+            border-radius: var(--radius-md);
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-secondary:hover { background: var(--bg-secondary); }
+
+        /* ── Section ── */
+        .section {
+            padding: 36px 32px;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: var(--text-faint);
+            margin-bottom: 18px;
+        }
+
+        /* ── Claim type cards ── */
+        .types-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .type-card {
+            background: var(--bg);
+            border: 0.5px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px 20px;
+            transition: border-color 0.15s;
+        }
+
+        .type-card:hover { border-color: var(--border-hover); }
+
+        .type-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 14px;
+            font-size: 14px;
+        }
+
+        .type-card h3 {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .type-card p {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.55;
+        }
+
+        .badge {
+            display: inline-block;
+            margin-top: 12px;
+            font-size: 10px;
+            font-weight: 500;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .badge-eu  { background: var(--blue-bg);  color: var(--blue-text); }
+        .badge-mc  { background: var(--teal-bg);  color: var(--teal-text); }
+
+        /* ── Status check ── */
+        .status-section {
+            padding: 28px 32px;
+            background: var(--bg-secondary);
+            border-top: 0.5px solid var(--border);
+        }
+
+        .status-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            max-width: 520px;
+        }
+
+        .status-input {
+            flex: 1;
+            border: 0.5px solid var(--border-hover);
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--text);
+            background: var(--bg);
+            outline: none;
+            font-family: var(--font);
+        }
+
+        .status-input:focus {
+            border-color: var(--blue-btn);
+            box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.12);
+        }
+
+        .status-input::placeholder { color: var(--text-faint); }
+
+        /* ── Stats strip ── */
+        .stats-strip {
+            display: flex;
+            gap: 32px;
+            padding: 20px 32px;
+            border-top: 0.5px solid var(--border);
+            border-bottom: 0.5px solid var(--border);
+        }
+
+        .stat { text-align: left; }
+        .stat-value { font-size: 20px; font-weight: 500; letter-spacing: -0.5px; }
+        .stat-label { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+        /* ── Footer ── */
+        footer {
+            padding: 16px 32px;
+            border-top: 0.5px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        footer p { font-size: 11px; color: var(--text-faint); }
+    </style>
 </head>
 <body>
-<h1 th:text="${message}">Hello</h1>
+
+<nav>
+    <div class="nav-logo">Claims<span>MVP</span></div>
+    <div class="nav-links">
+        <a href="/swagger-ui.html">API docs</a>
+        <a href="#">Status</a>
+    </div>
+</nav>
+
+<div class="hero">
+    <p class="eyebrow">Airline compensation platform</p>
+    <h1>File your flight or baggage<br>compensation claim</h1>
+    <p>Automated eligibility check and compensation letter generation under EU 261/2004 and Montreal Convention 1999. Track the status of your claim at every step.</p>
+    <div class="hero-actions">
+        <a href="/api/claims" class="btn-primary">Start a claim</a>
+        <button class="btn-secondary" onclick="document.getElementById('claim-id-input').focus()">Check claim status</button>
+    </div>
+</div>
+
+<div class="stats-strip">
+    <div class="stat">
+        <div class="stat-value">4</div>
+        <div class="stat-label">Claim types supported</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">€600</div>
+        <div class="stat-label">Max EU 261 compensation</div>
+    </div>
+    <div class="stat">
+        <div class="stat-value">€500</div>
+        <div class="stat-label">Max baggage allowance</div>
+    </div>
+</div>
+
+<div class="section">
+    <p class="section-label">Supported claim types</p>
+    <div class="types-grid">
+
+        <div class="type-card">
+            <div class="type-icon" style="background: var(--blue-bg);">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 8H2M9 3l5 5-5 5" stroke="#185FA5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3>Flight delay</h3>
+            <p>Arrival delay of 3 hours or more. Compensation €250–€600 based on route distance.</p>
+            <span class="badge badge-eu">EU 261/2004</span>
+        </div>
+
+        <div class="type-card">
+            <div class="type-icon" style="background: var(--amber-bg);">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 3l10 10M13 3L3 13" stroke="#BA7517" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h3>Cancellation</h3>
+            <p>Flight cancelled with fewer than 14 days notice. Full compensation plus re-routing.</p>
+            <span class="badge badge-eu">EU 261/2004</span>
+        </div>
+
+        <div class="type-card">
+            <div class="type-icon" style="background: var(--teal-bg);">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 8h12M9 4l4 4-4 4M7 4L3 8l4 4" stroke="#0F6E56" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3>Missed connection</h3>
+            <p>Connecting flight missed due to first segment delay. Final arrival 3+ hours late.</p>
+            <span class="badge badge-eu">EU 261/2004</span>
+        </div>
+
+        <div class="type-card">
+            <div class="type-icon" style="background: var(--coral-bg);">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="4" width="12" height="9" rx="1.5" stroke="#993C1D" stroke-width="1.5"/>
+                    <path d="M5 4V3a3 3 0 016 0v1" stroke="#993C1D" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <h3>Baggage delay</h3>
+            <p>Baggage delayed 6 hours or more. Daily allowance up to €500 total.</p>
+            <span class="badge badge-mc">Montreal Conv.</span>
+        </div>
+
+    </div>
+</div>
+
+<div class="status-section">
+    <p class="section-label">Check claim status</p>
+    <div class="status-row">
+        <input
+            id="claim-id-input"
+            class="status-input"
+            type="text"
+            placeholder="Enter claim ID (e.g. 1, 42)"
+            onkeydown="if(event.key==='Enter') checkClaim()"
+        >
+        <button class="btn-primary" onclick="checkClaim()">Check</button>
+    </div>
+</div>
+
+<footer>
+    <p>claims-mvp — development build</p>
+    <p>EU 261/2004 &nbsp;·&nbsp; Montreal Convention 1999</p>
+</footer>
+
+<script>
+    function checkClaim() {
+        const id = document.getElementById('claim-id-input').value.trim();
+        if (id) window.location.href = '/api/claims/' + encodeURIComponent(id);
+    }
+</script>
+
 </body>
 </html>

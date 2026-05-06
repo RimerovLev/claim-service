@@ -29,7 +29,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
     private int port;
 
     @MockitoBean
-    private com.claims.mvp.notifications.NotificationService notificationService;
+    private org.springframework.mail.javamail.JavaMailSender mailSender;
 
     @Test
     void createClaim_withoutDocuments_setsDocsRequested() {
@@ -285,8 +285,8 @@ class ClaimIntegrationTest extends IntegrationTestBase {
                 .retrieve()
                 .body(ClaimResponse.class);
 
-        org.mockito.Mockito.verify(notificationService)
-                .sendClaimCreated(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(mailSender)
+                .send(org.mockito.ArgumentMatchers.any(org.springframework.mail.SimpleMailMessage.class));
     }
 
     @Test
@@ -405,6 +405,50 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         issue.setBaggageDelayHours(baggageDelayHours);
         issue.setExtraordinaryCircumstances(false);
         return issue;
+    }
+
+    private IssueRequest buildBaggageLostIssue(int baggageDelayHours) {
+        IssueRequest issue = new IssueRequest();
+        issue.setType(IssueType.BAGGAGE_LOST);
+        issue.setBaggageDelayHours(baggageDelayHours);
+        issue.setExtraordinaryCircumstances(false);
+        return issue;
+    }
+
+    @Test
+    void createClaim_baggageLost_withRequiredDocuments_isEligibleReadyToSubmit_andLetterMentionsArticle17() {
+        UserResponse user = createUser("Baggage Lost User", "baggage-lost-user@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildBaggageLostIssue(600));  // 600 часов > 504 часов (21 дня) → eligible
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("pir-lost", DocumentTypes.PIR),
+                buildDocument("bag-tag-lost", DocumentTypes.BAG_TAG)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getEligible()).isTrue();
+        assertThat(created.getCompensationAmount()).isEqualTo(1000);
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+
+        LetterResponse letter = client().get()
+                .uri("/api/claims/" + created.getId() + "/letter")
+                .retrieve()
+                .body(LetterResponse.class);
+
+        assertThat(letter).isNotNull();
+        assertThat(letter.getBody()).contains("Article 17");
+        assertThat(letter.getBody()).contains("Montreal Convention");
     }
 
     private IssueRequest buildMissedConnectionIssue(int totalArrivalDelayMinutes) {
