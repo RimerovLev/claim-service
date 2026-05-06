@@ -20,6 +20,7 @@ import com.claims.mvp.claim.model.Issue;
 import com.claims.mvp.claim.mapper.ClaimEntityMapper;
 import com.claims.mvp.claim.mapper.ClaimMapper;
 import com.claims.mvp.claim.service.letter.strategy.*;
+import com.claims.mvp.eligibility.dto.response.EligibilityResult;
 import com.claims.mvp.eligibility.service.EligibilityService;
 import com.claims.mvp.eligibility.service.EligibilityServiceImpl;
 import com.claims.mvp.claim.service.documents.ClaimDocumentsService;
@@ -92,7 +93,8 @@ class ClaimServiceImplTest {
                         new CancellationEligibilityStrategy(),
                         new MissedConnectionEligibilityStrategy(),
                         new BaggageDelayedEligibilityStrategy(),
-                        new BaggageLostEligibilityStrategy()
+                        new BaggageLostEligibilityStrategy(),
+                        new BaggageDamagedEligibilityStrategy()
                 )
         );
         ClaimWorkflowService workflowService = new ClaimWorkflowServiceImpl();
@@ -103,7 +105,8 @@ class ClaimServiceImplTest {
                         new CancellationLetterStrategy(),
                         new MissedConnectionLetterStrategy(),
                         new BaggageDelayedLetterStrategy(),
-                        new BaggageLostLetterStrategy()
+                        new BaggageLostLetterStrategy(),
+                        new BaggageDamagedLetterStrategy()
                 )
         );
 

@@ -451,6 +451,53 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(letter.getBody()).contains("Montreal Convention");
     }
 
+    @Test
+    void createClaim_baggageDamaged_withRequiredDocuments_isEligibleReadyToSubmit_andLetterMentionsDamage() {
+        UserResponse user = createUser("Baggage Damage User", "baggage-damage-user@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildBaggageDamagedIssue(5));  // 5 дней < 7 дней → eligible
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("pir-damaged", DocumentTypes.PIR),
+                buildDocument("photo-damaged", DocumentTypes.PHOTO)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getEligible()).isTrue();
+        assertThat(created.getCompensationAmount()).isEqualTo(800);
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+
+        LetterResponse letter = client().get()
+                .uri("/api/claims/" + created.getId() + "/letter")
+                .retrieve()
+                .body(LetterResponse.class);
+
+        assertThat(letter).isNotNull();
+        assertThat(letter.getBody()).contains("Article 17");
+        assertThat(letter.getBody()).contains("damage");
+        assertThat(letter.getBody()).contains("Montreal Convention");
+    }
+
+    private IssueRequest buildBaggageDamagedIssue(int daysSinceDelivery) {
+        IssueRequest issue = new IssueRequest();
+        issue.setType(IssueType.BAGGAGE_DAMAGED);
+        issue.setDaysSinceDelivery(daysSinceDelivery);
+        issue.setExtraordinaryCircumstances(false);
+        return issue;
+    }
+
+
+
     private IssueRequest buildMissedConnectionIssue(int totalArrivalDelayMinutes) {
         IssueRequest issue = new IssueRequest();
         issue.setType(IssueType.MISSED_CONNECTION);

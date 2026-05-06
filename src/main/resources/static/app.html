@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClaimsMVP</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --sidebar-w: 224px;
+  --bg: #f5f4f1;
+  --surface: #ffffff;
+  --border: rgba(0,0,0,0.08);
+  --border-md: rgba(0,0,0,0.14);
+  --text: #1a1918;
+  --muted: #6b6965;
+  --faint: #9b9895;
+  --blue: #185FA5;
+  --blue-bg: #E6F1FB;
+  --blue-text: #0C447C;
+  --green-bg: #EAF3DE;
+  --green-text: #3B6D11;
+  --amber-bg: #FAEEDA;
+  --amber-text: #633806;
+  --red-bg: #FCEBEB;
+  --red-text: #A32D2D;
+  --gray-bg: #F1EFE8;
+  --gray-text: #444441;
+  --teal-bg: #E1F5EE;
+  --teal-text: #085041;
+  --coral-bg: #FAECE7;
+  --coral-text: #4A1B0C;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+html, body { height: 100%; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 0.5px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  height: 100vh;
+}
+.sidebar-logo {
+  padding: 18px 16px 14px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  background: #1a1918;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.logo-mark svg { width: 15px; height: 15px; }
+.logo-text { font-size: 13.5px; font-weight: 500; }
+.logo-text span { color: var(--muted); font-weight: 400; }
+
+.nav { padding: 10px 8px; flex: 1; overflow-y: auto; }
+.nav-section {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 10px 8px 5px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 1px;
+  transition: background 0.12s;
+  user-select: none;
+}
+.nav-item:hover { background: var(--bg); color: var(--text); }
+.nav-item.active { background: var(--blue-bg); color: var(--blue-text); font-weight: 500; }
+.nav-item svg { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.65; }
+.nav-item.active svg { opacity: 1; }
+
+.sidebar-footer {
+  padding: 14px 16px;
+  border-top: 0.5px solid var(--border);
+}
+.avatar { display: flex; align-items: center; gap: 9px; }
+.avatar-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--blue-bg);
+  color: var(--blue-text);
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.avatar-name { font-size: 12.5px; font-weight: 500; }
+.avatar-role { font-size: 11px; color: var(--faint); }
+
+/* ── Main area ── */
+.main-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.page { display: none; flex-direction: column; height: 100%; }
+.page.active { display: flex; }
+
+.topbar {
+  padding: 14px 24px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.topbar-title { font-size: 14px; font-weight: 500; }
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+.btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  font-family: var(--font);
+  transition: opacity 0.1s;
+}
+.btn:hover { opacity: 0.85; }
+.btn-primary { background: #1a1918; color: #fff; }
+.btn-outline { background: transparent; border: 0.5px solid var(--border-md); color: var(--text); }
+.btn-blue { background: var(--blue); color: #fff; }
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+/* ── Stats ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  padding: 15px 17px;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--faint);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  margin-bottom: 7px;
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+.stat-sub {
+  font-size: 11px;
+  margin-top: 5px;
+  color: var(--faint);
+}
+.trend-up { color: #3B6D11; }
+.trend-down { color: #A32D2D; }
+
+/* ── Table card ── */
+.table-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.table-header {
+  padding: 12px 18px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.table-title { font-size: 13px; font-weight: 500; }
+.filter-row { display: flex; gap: 5px; }
+.filter-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 0.5px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font);
+  transition: all 0.1s;
+}
+.filter-btn:hover { background: var(--bg); color: var(--text); }
+.filter-btn.active { background: var(--bg); color: var(--text); border-color: var(--border-md); }
+
+table { width: 100%; border-collapse: collapse; }
+thead tr { border-bottom: 0.5px solid var(--border); }
+th {
+  padding: 9px 18px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--faint);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 0.5px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg); }
+tbody tr.selected { background: #EEF5FC; }
+td {
+  padding: 10px 18px;
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+.td-id { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.td-user { font-weight: 500; }
+.td-num { font-variant-numeric: tabular-nums; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.badge-new        { background: var(--gray-bg);   color: var(--gray-text); }
+.badge-docs       { background: var(--amber-bg);  color: var(--amber-text); }
+.badge-ready      { background: var(--blue-bg);   color: var(--blue-text); }
+.badge-submitted  { background: var(--teal-bg);   color: var(--teal-text); }
+.badge-followup   { background: var(--coral-bg);  color: var(--coral-text); }
+.badge-approved   { background: var(--green-bg);  color: var(--green-text); }
+.badge-paid       { background: var(--green-bg);  color: var(--green-text); }
+.badge-rejected   { background: var(--red-bg);    color: var(--red-text); }
+
+/* ── Type pill ── */
+.type-pill { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); }
+.type-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot-delay     { background: #185FA5; }
+.dot-cancel    { background: #BA7517; }
+.dot-missed    { background: #0F6E56; }
+.dot-baggage   { background: #993C1D; }
+
+/* ── Detail panel ── */
+.detail-panel {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 320px;
+  height: 100%;
+  background: var(--surface);
+  border-left: 0.5px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+  z-index: 20;
+}
+.detail-panel.open { transform: translateX(0); }
+.detail-top {
+  padding: 14px 18px;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.detail-top-title { font-size: 13.5px; font-weight: 500; }
+.detail-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+}
+.detail-close:hover { background: var(--bg); }
+.detail-body { flex: 1; overflow-y: auto; padding: 18px; }
+.detail-section { margin-bottom: 20px; }
+.detail-section-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 10px;
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-key { font-size: 12px; color: var(--muted); }
+.detail-val { font-size: 12.5px; font-weight: 500; text-align: right; max-width: 60%; }
+
+.letter-box {
+  background: var(--bg);
+  border: 0.5px solid var(--border);
+  border-radius: 7px;
+  padding: 12px 14px;
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.letter-subject {
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.letter-divider {
+  border: none;
+  border-top: 0.5px solid var(--border);
+  margin: 10px 0;
+}
+
+.detail-footer {
+  padding: 14px 18px;
+  border-top: 0.5px solid var(--border);
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.detail-footer .btn { flex: 1; text-align: center; }
+
+/* ── Timeline ── */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.timeline-item { display: flex; gap: 10px; padding: 8px 0; }
+.timeline-line-wrap { display: flex; flex-direction: column; align-items: center; width: 16px; flex-shrink: 0; }
+.timeline-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); margin-top: 4px; flex-shrink: 0; }
+.timeline-dot.dim { background: var(--border-md); }
+.timeline-connector { width: 1px; flex: 1; background: var(--border); min-height: 12px; }
+.timeline-content { flex: 1; padding-bottom: 4px; }
+.timeline-event { font-size: 12px; font-weight: 500; }
+.timeline-meta { font-size: 11px; color: var(--faint); margin-top: 1px; }
+
+/* ── New claim form ── */
+.form-card {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  padding: 22px 24px;
+  max-width: 560px;
+}
+.form-section-title { font-size: 13px; font-weight: 500; margin-bottom: 14px; }
+.form-grid { display: grid; gap: 12px; }
+.form-grid-2 { grid-template-columns: 1fr 1fr; }
+.form-field {}
+.form-label { font-size: 11px; font-weight: 500; color: var(--faint); margin-bottom: 5px; display: block; }
+.form-input {
+  width: 100%;
+  border: 0.5px solid var(--border-md);
+  border-radius: 6px;
+  padding: 8px 11px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(24,95,165,0.10);
+  background: var(--surface);
+}
+.form-input::placeholder { color: var(--faint); }
+.form-divider { height: 0.5px; background: var(--border); margin: 18px 0; }
+
+.type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.type-card {
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.type-card:hover { border-color: var(--border-md); background: var(--bg); }
+.type-card.selected { border-color: var(--blue); background: var(--blue-bg); }
+.type-card-dot { width: 8px; height: 8px; border-radius: 50%; margin-bottom: 6px; }
+.type-card-name { font-size: 12.5px; font-weight: 500; margin-bottom: 2px; }
+.type-card-sub { font-size: 11px; color: var(--muted); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 15 15" fill="none">
+        <path d="M2 7.5h11M8 3l4.5 4.5L8 12" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="logo-text">Claims<span>MVP</span></div>
+  </div>
+
+  <nav class="nav">
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" data-page="dashboard">
+      <svg viewBox="0 0 14 14" fill="none">
+        <rect x="1" y="1" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="7.5" y="1" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="1" y="7.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+        <rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1.2" stroke="currentColor" stroke-width="1.3"/>
+      </svg>
+      Dashboard
+    </div>
+    <div class="nav-item" data-page="claims">
+      <svg viewBox="0 0 14 14" fill="none">
+        <rect x="1.5" y="1.5" width="11" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M4 5h6M4 7.5h5M4 10h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      Claims
+    </div>
+    <div class="nav-item" data-page="new">
+      <svg viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M7 4.5v5M4.5 7h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      New claim
+    </div>
+
+    <div class="nav-section" style="margin-top:10px">Analytics</div>
+    <div class="nav-item" data-page="none">
+      <svg viewBox="0 0 14 14" fill="none">
+        <path d="M2 11L5 7l3 2 4-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Reports
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="avatar">
+      <div class="avatar-circle">LR</div>
+      <div>
+        <div class="avatar-name">Lev Rimerov</div>
+        <div class="avatar-role">Admin</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════
+     MAIN WRAP
+═══════════════════════════════════ -->
+<div class="main-wrap">
+
+  <!-- ─── DASHBOARD ─── -->
+  <div class="page active" id="page-dashboard">
+    <div class="topbar">
+      <span class="topbar-title">Dashboard</span>
+      <div class="topbar-actions">
+        <button class="btn btn-outline">Export CSV</button>
+        <button class="btn btn-primary" data-goto="new">+ New claim</button>
+      </div>
+    </div>
+    <div class="content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total claims</div>
+          <div class="stat-value">47</div>
+          <div class="stat-sub trend-up">↑ 12 this month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pending docs</div>
+          <div class="stat-value">11</div>
+          <div class="stat-sub">Awaiting upload</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Approval rate</div>
+          <div class="stat-value">62%</div>
+          <div class="stat-sub trend-up">↑ 8pp vs last month</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg compensation</div>
+          <div class="stat-value">€382</div>
+          <div class="stat-sub">Across paid claims</div>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">Recent claims</span>
+          <div class="filter-row">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="pending">Pending</button>
+            <button class="filter-btn" data-filter="submitted">Submitted</button>
+            <button class="filter-btn" data-filter="paid">Paid</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>#</th>
+            <th>Claimant</th>
+            <th>Type</th>
+            <th>Flight</th>
+            <th>Compensation</th>
+            <th>Status</th>
+            <th>Created</th>
+          </tr></thead>
+          <tbody id="dashboard-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── CLAIMS LIST ─── -->
+  <div class="page" id="page-claims">
+    <div class="topbar">
+      <span class="topbar-title">All claims</span>
+      <div class="topbar-actions">
+        <input
+          id="claims-search"
+          style="border:0.5px solid var(--border-md);border-radius:6px;padding:6px 12px;font-size:12.5px;background:var(--bg);outline:none;width:200px;font-family:var(--font)"
+          placeholder="Search by name or flight…"
+        >
+        <button class="btn btn-primary" data-goto="new">+ New claim</button>
+      </div>
+    </div>
+    <div class="content">
+      <div class="table-card">
+        <table>
+          <thead><tr>
+            <th>#</th>
+            <th>Claimant</th>
+            <th>Type</th>
+            <th>Flight</th>
+            <th>Route</th>
+            <th>Compensation</th>
+            <th>Status</th>
+            <th>Created</th>
+          </tr></thead>
+          <tbody id="claims-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── NEW CLAIM ─── -->
+  <div class="page" id="page-new">
+    <div class="topbar">
+      <span class="topbar-title">New claim</span>
+      <div class="topbar-actions">
+        <button class="btn btn-outline" data-goto="claims">Cancel</button>
+      </div>
+    </div>
+    <div class="content">
+      <div class="form-card">
+        <div class="form-section-title">Claimant</div>
+        <div class="form-grid form-grid-2">
+          <div class="form-field">
+            <label class="form-label">Full name</label>
+            <input class="form-input" placeholder="Anna Müller">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Email</label>
+            <input class="form-input" type="email" placeholder="user@example.com">
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+        <div class="form-section-title">Flight details</div>
+        <div class="form-grid form-grid-2">
+          <div class="form-field">
+            <label class="form-label">Flight number</label>
+            <input class="form-input" placeholder="LH123">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Flight date</label>
+            <input class="form-input" type="date">
+          </div>
+          <div class="form-field">
+            <label class="form-label">From (IATA)</label>
+            <input class="form-input" placeholder="FRA">
+          </div>
+          <div class="form-field">
+            <label class="form-label">To (IATA)</label>
+            <input class="form-input" placeholder="MAD">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Airline</label>
+            <input class="form-input" placeholder="Lufthansa">
+          </div>
+          <div class="form-field">
+            <label class="form-label">Booking reference</label>
+            <input class="form-input" placeholder="ABC123">
+          </div>
+        </div>
+
+        <div class="form-divider"></div>
+        <div class="form-section-title">Issue type</div>
+        <div class="type-grid" id="type-grid">
+          <div class="type-card selected" data-type="DELAY">
+            <div class="type-card-dot dot-delay"></div>
+            <div class="type-card-name">Flight delay</div>
+            <div class="type-card-sub">EU 261/2004 · ≥ 3 hours</div>
+          </div>
+          <div class="type-card" data-type="CANCELLATION">
+            <div class="type-card-dot dot-cancel"></div>
+            <div class="type-card-name">Cancellation</div>
+            <div class="type-card-sub">EU 261/2004 · &lt; 14 days notice</div>
+          </div>
+          <div class="type-card" data-type="MISSED_CONNECTION">
+            <div class="type-card-dot dot-missed"></div>
+            <div class="type-card-name">Missed connection</div>
+            <div class="type-card-sub">EU 261/2004 · final delay ≥ 3h</div>
+          </div>
+          <div class="type-card" data-type="BAGGAGE_DELAYED">
+            <div class="type-card-dot dot-baggage"></div>
+            <div class="type-card-name">Baggage delay</div>
+            <div class="type-card-sub">Montreal Conv. · ≥ 6 hours</div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px">
+          <button class="btn btn-blue" style="width:100%;padding:10px;font-size:13px" data-goto="claims">
+            Create claim →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── DETAIL PANEL ─── -->
+  <aside class="detail-panel" id="detail-panel">
+    <div class="detail-top">
+      <div class="detail-top-title" id="detail-title">Claim #–</div>
+      <button class="detail-close" id="detail-close">✕</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-section">
+        <div class="detail-section-label">Claim info</div>
+        <div class="detail-row">
+          <span class="detail-key">Claimant</span>
+          <span class="detail-val" id="d-user"></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Email</span>
+          <span class="detail-val" id="d-email" style="font-size:11.5px;color:var(--muted);font-weight:400"></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Type</span>
+          <span class="detail-val" id="d-type"></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Flight</span>
+          <span class="detail-val" id="d-flight"></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Status</span>
+          <span id="d-status"></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Eligible</span>
+          <span class="detail-val" id="d-eligible"></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Compensation</span>
+          <span class="detail-val" id="d-amount"></span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-key">Created</span>
+          <span class="detail-val" id="d-date" style="font-weight:400;color:var(--muted)"></span>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-label">Status history</div>
+        <div class="timeline" id="d-timeline"></div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section-label">Generated letter</div>
+        <div class="letter-box">
+          <div class="letter-subject" id="d-subject"></div>
+          <hr class="letter-divider">
+          <div id="d-body"></div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-footer">
+      <button class="btn btn-blue">Submit claim</button>
+      <button class="btn btn-outline">Download</button>
+    </div>
+  </aside>
+
+</div><!-- /main-wrap -->
+
+<script>
+/* ── Data ── */
+const CLAIMS = [
+  {id:47,user:'Anna Müller',   email:'anna@example.com',   type:'DELAY',              flight:'LH456',route:'FRA→JFK',distance:7000,amount:600, status:'READY_TO_SUBMIT',date:'2026-05-04',eligible:true},
+  {id:46,user:'Ivan Petrov',   email:'ivan@example.com',   type:'CANCELLATION',       flight:'SU234',route:'SVO→AMS',distance:2100,amount:400, status:'SUBMITTED',      date:'2026-05-03',eligible:true},
+  {id:45,user:'Maria Santos',  email:'maria@example.com',  type:'BAGGAGE_DELAYED',    flight:'IB789',route:'MAD→LHR',distance:1260,amount:150, status:'DOCS_REQUESTED', date:'2026-05-02',eligible:true},
+  {id:44,user:'Pierre Dupont', email:'pierre@example.com', type:'MISSED_CONNECTION',  flight:'AF101',route:'CDG→FRA',distance:480, amount:250, status:'APPROVED',        date:'2026-05-01',eligible:true},
+  {id:43,user:'Lena Braun',    email:'lena@example.com',   type:'DELAY',              flight:'EW567',route:'BER→BCN',distance:1800,amount:400, status:'PAID',            date:'2026-04-30',eligible:true},
+  {id:42,user:'Olga Kim',      email:'olga@example.com',   type:'CANCELLATION',       flight:'KE302',route:'ICN→FRA',distance:9100,amount:600, status:'REJECTED',        date:'2026-04-28',eligible:false},
+  {id:41,user:'James Smith',   email:'james@example.com',  type:'BAGGAGE_DELAYED',    flight:'BA441',route:'LHR→JFK',distance:5500,amount:200, status:'FOLLOW_UP_SENT',  date:'2026-04-27',eligible:true},
+  {id:40,user:'Yuki Tanaka',   email:'yuki@example.com',   type:'DELAY',              flight:'NH203',route:'NRT→FRA',distance:9360,amount:600, status:'CLOSED',          date:'2026-04-25',eligible:true},
+];
+
+const TYPE_LABELS = {
+  DELAY:'Flight delay',
+  CANCELLATION:'Cancellation',
+  MISSED_CONNECTION:'Missed connection',
+  BAGGAGE_DELAYED:'Baggage delay'
+};
+const TYPE_DOT = {
+  DELAY:'dot-delay',
+  CANCELLATION:'dot-cancel',
+  MISSED_CONNECTION:'dot-missed',
+  BAGGAGE_DELAYED:'dot-baggage'
+};
+const STATUS_CLASS = {
+  NEW:'badge-new',
+  DOCS_REQUESTED:'badge-docs',
+  READY_TO_SUBMIT:'badge-ready',
+  SUBMITTED:'badge-submitted',
+  FOLLOW_UP_SENT:'badge-followup',
+  APPROVED:'badge-approved',
+  PAID:'badge-paid',
+  REJECTED:'badge-rejected',
+  CLOSED:'badge-new'
+};
+const STATUS_LABEL = {
+  NEW:'New',
+  DOCS_REQUESTED:'Docs needed',
+  READY_TO_SUBMIT:'Ready',
+  SUBMITTED:'Submitted',
+  FOLLOW_UP_SENT:'Follow-up',
+  APPROVED:'Approved',
+  PAID:'Paid',
+  REJECTED:'Rejected',
+  CLOSED:'Closed'
+};
+const FILTER_MAP = {
+  all: ()=>true,
+  pending: c=>['NEW','DOCS_REQUESTED','READY_TO_SUBMIT'].includes(c.status),
+  submitted: c=>['SUBMITTED','FOLLOW_UP_SENT'].includes(c.status),
+  paid: c=>c.status==='PAID'
+};
+const TYPE_REGULATION = {
+  DELAY:'EU 261/2004',
+  CANCELLATION:'EU 261/2004',
+  MISSED_CONNECTION:'EU 261/2004',
+  BAGGAGE_DELAYED:'Montreal Convention 1999'
+};
+const HISTORY = {
+  READY_TO_SUBMIT: [
+    {event:'Claim created', meta:'May 4, 2026 · 09:41'},
+    {event:'Eligibility confirmed', meta:'May 4, 2026 · 09:41'},
+  ],
+  SUBMITTED: [
+    {event:'Submitted to airline', meta:'May 3, 2026 · 14:20'},
+    {event:'Claim created', meta:'May 3, 2026 · 11:05', dim:true},
+  ],
+  DOCS_REQUESTED: [
+    {event:'Documents requested', meta:'May 2, 2026 · 10:30'},
+    {event:'Claim created', meta:'May 2, 2026 · 10:30', dim:true},
+  ],
+  APPROVED: [
+    {event:'Claim approved', meta:'May 1, 2026 · 16:00'},
+    {event:'Follow-up sent', meta:'Apr 28, 2026 · 10:00', dim:true},
+    {event:'Submitted to airline', meta:'Apr 25, 2026 · 09:00', dim:true},
+  ],
+  PAID: [
+    {event:'Compensation received', meta:'Apr 30, 2026 · 08:00'},
+    {event:'Claim approved', meta:'Apr 27, 2026 · 17:00', dim:true},
+  ],
+  REJECTED: [
+    {event:'Claim rejected', meta:'Apr 28, 2026 · 13:00'},
+    {event:'Follow-up sent', meta:'Apr 25, 2026', dim:true},
+  ],
+  FOLLOW_UP_SENT: [
+    {event:'Follow-up email sent', meta:'Apr 27, 2026 · 09:00'},
+    {event:'Submitted to airline', meta:'Apr 24, 2026', dim:true},
+  ],
+  CLOSED: [
+    {event:'Claim closed', meta:'Apr 25, 2026 · 11:00'},
+    {event:'Compensation received', meta:'Apr 22, 2026', dim:true},
+  ]
+};
+
+/* ── Render helpers ── */
+function badge(status) {
+  return `<span class="badge ${STATUS_CLASS[status]}">${STATUS_LABEL[status]}</span>`;
+}
+function typePill(type) {
+  return `<span class="type-pill"><span class="type-dot ${TYPE_DOT[type]}"></span>${TYPE_LABELS[type]}</span>`;
+}
+function renderRow(c, extra = '') {
+  return `<tr data-id="${c.id}">
+    <td class="td-id">#${c.id}</td>
+    <td class="td-user">${c.user}</td>
+    <td>${typePill(c.type)}</td>
+    <td>${c.flight}</td>
+    ${extra}
+    <td class="td-num">€${c.amount}</td>
+    <td>${badge(c.status)}</td>
+    <td style="color:var(--muted);font-size:12px">${c.date}</td>
+  </tr>`;
+}
+
+function renderDashboard(filter = 'all') {
+  const filtered = CLAIMS.filter(FILTER_MAP[filter]).slice(0, 8);
+  document.getElementById('dashboard-tbody').innerHTML =
+    filtered.map(c => renderRow(c, `<td style="color:var(--muted)">${c.route}</td>`)).join('');
+  attachRowListeners('dashboard-tbody');
+}
+
+function renderClaims(query = '') {
+  const q = query.toLowerCase();
+  const filtered = CLAIMS.filter(c =>
+    !q || c.user.toLowerCase().includes(q) || c.flight.toLowerCase().includes(q)
+  );
+  document.getElementById('claims-tbody').innerHTML =
+    filtered.map(c => renderRow(c, `<td style="color:var(--muted)">${c.route}</td>`)).join('');
+  attachRowListeners('claims-tbody');
+}
+
+function attachRowListeners(tbodyId) {
+  document.querySelectorAll(`#${tbodyId} tr`).forEach(tr => {
+    tr.addEventListener('click', () => openDetail(+tr.dataset.id));
+  });
+}
+
+/* ── Navigation ── */
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.page === name);
+  });
+  closeDetail();
+}
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => { if(item.dataset.page !== 'none') showPage(item.dataset.page); });
+});
+document.querySelectorAll('[data-goto]').forEach(btn => {
+  btn.addEventListener('click', () => showPage(btn.dataset.goto));
+});
+
+/* ── Filter buttons ── */
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderDashboard(btn.dataset.filter);
+  });
+});
+
+/* ── Search ── */
+const searchInput = document.getElementById('claims-search');
+if (searchInput) {
+  searchInput.addEventListener('input', () => renderClaims(searchInput.value));
+}
+
+/* ── Type selector (new claim) ── */
+document.querySelectorAll('#type-grid .type-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('#type-grid .type-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+  });
+});
+
+/* ── Detail panel ── */
+function openDetail(id) {
+  const c = CLAIMS.find(x => x.id === id);
+  if (!c) return;
+
+  document.getElementById('detail-title').textContent = 'Claim #' + c.id;
+  document.getElementById('d-user').textContent = c.user;
+  document.getElementById('d-email').textContent = c.email;
+  document.getElementById('d-type').innerHTML = typePill(c.type);
+  document.getElementById('d-flight').textContent = c.flight + '  ' + c.route;
+  document.getElementById('d-status').innerHTML = badge(c.status);
+  document.getElementById('d-eligible').textContent = c.eligible ? 'Yes' : 'No';
+  document.getElementById('d-amount').textContent = '€' + c.amount;
+  document.getElementById('d-date').textContent = c.date;
+
+  const history = HISTORY[c.status] || [{event:'Claim created', meta:c.date}];
+  document.getElementById('d-timeline').innerHTML = history.map((h, i) => `
+    <div class="timeline-item">
+      <div class="timeline-line-wrap">
+        <div class="timeline-dot ${h.dim ? 'dim' : ''}"></div>
+        ${i < history.length - 1 ? '<div class="timeline-connector"></div>' : ''}
+      </div>
+      <div class="timeline-content">
+        <div class="timeline-event" style="${h.dim ? 'color:var(--muted)' : ''}">${h.event}</div>
+        <div class="timeline-meta">${h.meta}</div>
+      </div>
+    </div>
+  `).join('');
+
+  const isEU = c.type !== 'BAGGAGE_DELAYED';
+  const reg = TYPE_REGULATION[c.type];
+  document.getElementById('d-subject').textContent =
+    (isEU ? 'EU 261/2004 Compensation Claim' : 'Baggage Delay Compensation Claim') +
+    ' — ' + c.flight + ' (' + c.route + ')';
+  document.getElementById('d-body').textContent =
+    `Dear ${c.user},\n\nI am writing to formally claim compensation under ${reg} regarding flight ${c.flight} on ${c.date} (route: ${c.route}).\n\nThe flight experienced a significant ${isEU ? 'delay/cancellation' : 'baggage delay'}, entitling me to compensation of €${c.amount}.\n\nPlease respond within 14 days of receipt.\n\nYours sincerely,\n${c.user}`;
+
+  document.getElementById('detail-panel').classList.add('open');
+  document.querySelectorAll('tbody tr').forEach(tr => {
+    tr.classList.toggle('selected', +tr.dataset.id === id);
+  });
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+  document.querySelectorAll('tbody tr').forEach(tr => tr.classList.remove('selected'));
+}
+
+document.getElementById('detail-close').addEventListener('click', closeDetail);
+
+/* ── Init ── */
+renderDashboard();
+renderClaims();
+</script>
+</body>
+</html>

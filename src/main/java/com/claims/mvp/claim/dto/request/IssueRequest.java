@@ -15,5 +15,6 @@ public class IssueRequest {
     @NotNull
     private Boolean extraordinaryCircumstances;
     private Integer baggageDelayHours;
+    private Integer daysSinceDelivery;
 }
 

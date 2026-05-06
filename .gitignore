@@ -56,3 +56,10 @@ uploads/
 
 # Claude Code personal settings
 .claude/settings.local.json
+
+# Planning & documentation (local)
+docs/daily/
+docs/week-plan.md
+docs/agent-handoff.md
+CLAUDE.md
+AGENTS.md

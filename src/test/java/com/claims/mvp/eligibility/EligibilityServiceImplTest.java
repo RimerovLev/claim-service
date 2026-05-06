@@ -23,7 +23,8 @@ class EligibilityServiceImplTest {
             new CancellationEligibilityStrategy(),
             new MissedConnectionEligibilityStrategy(),
             new BaggageDelayedEligibilityStrategy(),
-            new BaggageLostEligibilityStrategy()
+            new BaggageLostEligibilityStrategy(),
+            new BaggageDamagedEligibilityStrategy()
     ));
 
 
@@ -300,5 +301,75 @@ class EligibilityServiceImplTest {
         document.setType(type);
         document.setUrl("https://example.test/" + type.name().toLowerCase());
         return document;
+    }
+
+    @Test
+    void baggageDamagedEligible_withinSevenDays() {
+        EligibilityResult result = service.evaluate(
+                baggageDamagedIssue(5, false),  // 5 дней < 7 дней
+                flight(1800),
+                euContext(true, true),
+                List.of(document(DocumentTypes.PIR), document(DocumentTypes.PHOTO))
+        );
+
+        assertThat(result.getEligible()).isTrue();
+        assertThat(result.getCompensationAmount()).isEqualTo(800);
+        assertThat(result.getRequiredDocuments())
+                .containsExactly(DocumentTypes.PIR, DocumentTypes.PHOTO);
+    }
+
+    @Test
+    void baggageDamagedNotEligible_afterSevenDays() {
+        EligibilityResult result = service.evaluate(
+                baggageDamagedIssue(8, false),  // 8 дней > 7 дней
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+    }
+
+    @Test
+    void baggageDamagedNotEligible_extraordinaryCircumstances() {
+        EligibilityResult result = service.evaluate(
+                baggageDamagedIssue(3, true),  // true = extraordinary
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+    }
+
+    @Test
+    void baggageDamagedNotEligible_nullDaysSinceDelivery() {
+        EligibilityResult result = service.evaluate(
+                baggageDamagedIssueWithNullDays(false),
+                flight(1800),
+                euContext(true, true),
+                List.of()
+        );
+
+        assertThat(result.getEligible()).isFalse();
+        assertThat(result.getCompensationAmount()).isEqualTo(0);
+    }
+
+    private Issue baggageDamagedIssue(Integer daysSinceDelivery, boolean extraordinary) {
+        Issue issue = new Issue();
+        issue.setType(IssueType.BAGGAGE_DAMAGED);
+        issue.setDaysSinceDelivery(daysSinceDelivery);
+        issue.setExtraordinaryCircumstances(extraordinary);
+        return issue;
+    }
+
+    private Issue baggageDamagedIssueWithNullDays(boolean extraordinary) {
+        Issue issue = new Issue();
+        issue.setType(IssueType.BAGGAGE_DAMAGED);
+        issue.setDaysSinceDelivery(null);
+        issue.setExtraordinaryCircumstances(extraordinary);
+        return issue;
     }
 }

@@ -19,7 +19,6 @@ import com.claims.mvp.eligibility.service.EligibilityService;
 import com.claims.mvp.events.dao.EventsRepository;
 import com.claims.mvp.events.dto.response.EventsResponse;
 import com.claims.mvp.events.model.ClaimEvents;
-import com.claims.mvp.notifications.NotificationService;
 import com.claims.mvp.notifications.events.ClaimCreatedEvent;
 import com.claims.mvp.notifications.events.ClaimStatusTransitionedEvent;
 import com.claims.mvp.user.dao.UserRepository;

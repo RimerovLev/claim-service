@@ -11,5 +11,7 @@ public class IssueResponse {
     private Integer delayMinutes;
     private Integer cancellationNoticeDays;
     private Boolean extraordinaryCircumstances;
+    private Integer baggageDelayHours;
+    private Integer daysSinceDelivery;
 }
 
