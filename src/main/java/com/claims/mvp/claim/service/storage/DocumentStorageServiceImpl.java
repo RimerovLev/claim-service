@@ -12,6 +12,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -55,6 +59,17 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
         String detectedMimeType = validateFile(request.getFile());
         Claim claim = claimRepository.findById(request.getClaimId())
                 .orElseThrow(() -> new IllegalArgumentException("Claim not found with id: " + request.getClaimId()));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new AccessDeniedException("Authentication required");
+        }
+        boolean isPrivileged = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (!isPrivileged && !claim.getUser().getEmail().equals(auth.getName())) {
+            throw new AccessDeniedException("Access denied: claim belongs to another user");
+        }
 
         Path uploadPath = Path.of(uploadDir).toAbsolutePath().normalize();
         Files.createDirectories(uploadPath);
@@ -103,6 +118,7 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
     public DocumentResponse getDocument(String id) throws IOException {
         BoardingDocuments document = boardingDocumentsRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found with id: " + id));
+        assertDocumentOwnerOrAdmin(document);
         Path resolvedPath = getSafePath(document.getStorageKey());
         if (!Files.exists(resolvedPath)) {
             log.warn("File not found: " + resolvedPath);
@@ -113,9 +129,20 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
 
     @Override
     public List<DocumentResponse> getDocumentsByClaimId(Long claimId) throws IOException {
-        if (!claimRepository.existsById(claimId)) {
-            throw new IllegalArgumentException("Claim not found with id: " + claimId);
+        Claim claim = claimRepository.findById(claimId)
+                .orElseThrow(() -> new IllegalArgumentException("Claim not found with id: " + claimId));
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new AccessDeniedException("Authentication required");
         }
+        boolean isPrivileged = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (!isPrivileged && !claim.getUser().getEmail().equals(auth.getName())) {
+            throw new AccessDeniedException("Access denied: claim belongs to another user");
+        }
+
         return boardingDocumentsRepository.findAllByClaimId(claimId).stream()
                 .map(documentMapper::toResponse)
                 .collect(Collectors.toList());
@@ -125,6 +152,7 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
     public DocumentResponse downloadDocument(String id) throws IOException {
         BoardingDocuments document = boardingDocumentsRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found with id: " + id));
+        assertDocumentOwnerOrAdmin(document);
         Path resolvedPath = getSafePath(document.getStorageKey());
         if (!Files.exists(resolvedPath)) {
             log.warn("File not found for download: {}", id);
@@ -141,6 +169,7 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
     public void deleteDocument(String id) throws IOException {
         BoardingDocuments document = boardingDocumentsRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Document not found with id: " + id));
+        assertDocumentOwnerOrAdmin(document);
         Path resolvedPath = getSafePath(document.getStorageKey());
         if (Files.exists(resolvedPath)) {
             Files.delete(resolvedPath);
@@ -198,5 +227,21 @@ public class DocumentStorageServiceImpl implements DocumentStorageService {
             default -> throw new IllegalArgumentException("Unsupported MIME type: " + contentType);
         };
         return UUID.randomUUID() + extension;
+    }
+
+    private void assertDocumentOwnerOrAdmin(BoardingDocuments document) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth instanceof AnonymousAuthenticationToken) {
+            throw new AccessDeniedException("Authentication required");
+        }
+        boolean isPrivileged = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (isPrivileged) return;
+
+        String ownerEmail = document.getClaim().getUser().getEmail();
+        if (!ownerEmail.equals(auth.getName())) {
+            throw new AccessDeniedException("Access denied: document belongs to another user");
+        }
     }
 }

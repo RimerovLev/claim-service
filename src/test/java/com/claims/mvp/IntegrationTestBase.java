@@ -1,11 +1,15 @@
 package com.claims.mvp;
 
+import com.claims.mvp.config.TestSecurityConfig;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+
 @Testcontainers
+@Import(TestSecurityConfig.class)
 public abstract class IntegrationTestBase {
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16")
             .withDatabaseName("claims_mvp")
@@ -23,5 +27,9 @@ public abstract class IntegrationTestBase {
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        // Disable production SecurityConfig + JwtAuthFilter for tests.
+        // TestSecurityConfig (loaded when this property is false) replaces it
+        // with a permit-all chain.
+        registry.add("app.security.enabled", () -> "false");
     }
 }

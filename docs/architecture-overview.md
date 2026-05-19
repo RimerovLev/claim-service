@@ -1,292 +1,321 @@
-# Архитектура claims-mvp — что и где
+# Архитектура claims-mvp
 
-Состояние на 2026-05-06.
+Состояние на 2026-05-10.
 
-## Что делает приложение в одном абзаце
+## Что делает приложение
 
-Приложение принимает заявки от пассажиров на компенсацию за задержанные / отменённые рейсы и потери/повреждения багажа под EU 261/2004 и Montreal Convention 1999. Пользователь создаёт claim с данными рейса и инцидента, прикладывает документы, система автоматически считает право на компенсацию и сумму, генерирует претензионное письмо, отправляет email-уведомления и ведёт claim через FSM-воронку (NEW → READY_TO_SUBMIT → SUBMITTED → APPROVED/REJECTED → PAID → CLOSED) с аудит-логом каждого шага.
+Сервис принимает заявки от пассажиров на компенсацию за задержки/отмены рейсов и проблемы с багажом под EU 261/2004 и Montreal Convention 1999. Пассажир (или оператор студии) создаёт claim с данными рейса и инцидента, прикладывает документы. Система рассчитывает eligibility и сумму, генерирует претензионное письмо, ведёт claim через FSM-воронку с аудит-логом, шлёт email-уведомления при создании и переходах, и автоматически продвигает submitted-claim'ы в follow-up через 14 дней (cron 9:00 ежедневно).
 
----
+Доступ под Spring Security + JWT. Три роли: USER (пассажир), MODERATOR (оператор студии), ADMIN.
 
-## Данные — какие объекты живут в БД
+## Стек
+
+- **Java 21** + **Spring Boot 4** (`@MockitoBean`, не deprecated `@MockBean`).
+- **PostgreSQL 16** + **Flyway** (V1-V6).
+- **JPA / Hibernate** + **MapStruct** (DTO ↔ entity).
+- **Lombok** (`@Getter/@Setter/@RequiredArgsConstructor/@Slf4j`).
+- **Spring Security** + **JJWT** (HS256 stateless tokens).
+- **Spring Mail** (`JavaMailSender`, dev: MailHog, prod: SMTP env vars).
+- **`@TransactionalEventListener(AFTER_COMMIT)`** — eventual consistency для нотификаций.
+- **`@Scheduled`** cron — follow-up автоматизация.
+- **TestContainers** (Postgres) + **JUnit 5** + **Mockito**.
+- **Jackson 3** (`tools.jackson.databind.ObjectMapper`, не `com.fasterxml`).
+- **Frontend:** Vite + React 19 + TypeScript + React Router v7.
+
+## Данные
 
 ```
-User
+User (id, fullName, email, passwordHash, role, createdAt)
  └── Claim (один user → много claims)
-      ├── Flight (1:1)         — номер рейса, авиакомпания, маршрут, дата, дистанция
-      ├── Issue (1:1)          — тип инцидента + тип-специфичные поля:
-      │                            delayMinutes (DELAY, MISSED_CONNECTION)
-      │                            cancellationNoticeDays (CANCELLATION)
-      │                            baggageDelayHours (BAGGAGE_DELAYED, BAGGAGE_LOST)
-      │                            daysSinceDelivery (BAGGAGE_DAMAGED) — V3 миграция
-      │                            extraordinary (все типы)
-      ├── EuContext (1:1)      — euCarrier? departureFromEu?
-      ├── BoardingDocuments[]  — документы: TICKET, BOARDING_PASS, PIR, BAG_TAG, PHOTO, RECEIPTS
-      └── ClaimEvents[]        — аудит-лог: тип события + JSON payload
+      ├── Flight (1:1)             flightNumber, airline, flightDate, route, distanceKm, bookingRef
+      ├── Issue (1:1)               type + поля под тип (см. ниже)
+      ├── EuContext (1:1)           departureFromEu, euCarrier
+      ├── BoardingDocuments[]       TICKET, BOARDING_PASS, BAG_TAG, PIR, PHOTO
+      └── ClaimEvents[]             аудит-лог (тип события + JSON payload)
 ```
+
+`Issue.type` определяет какие поля заполнены:
+
+| IssueType | Используемые поля |
+|-----------|-------------------|
+| `DELAY` | `delayMinutes` |
+| `CANCELLATION` | `cancellationNoticeDays` |
+| `MISSED_CONNECTION` | `delayMinutes` (итоговая задержка прибытия) |
+| `BAGGAGE_DELAYED` | `baggageDelayHours` |
+| `BAGGAGE_LOST` | `baggageDelayHours` (>504ч = 21 день = lost) |
+| `BAGGAGE_DAMAGED` | `daysSinceDelivery` |
 
 `Claim` хранит **derived поля** — `eligible`, `compensationAmount`, `status`. Пересчитываются при каждом create/update через `recalcDerivedFields`.
 
+`ClaimStatus` (FSM): `NEW → DOCS_REQUESTED ⇄ READY_TO_SUBMIT → SUBMITTED → FOLLOW_UP_SENT → ESCALATED → APPROVED/REJECTED → PAID/CLOSED`.
+
 **Миграции Flyway:**
-- V1 — базовая схема.
+- V1 — базовая схема (users, claims, flights, issues, eu_context, documents, claim_events).
 - V2 — `baggage_delay_hours` в `issues`.
-- V3 — `days_since_delivery` в `issues` (BAGGAGE_DAMAGED, Week 2 Day 2).
+- V3 — `days_since_delivery` в `issues`.
+- V4 — `password_hash` в `users`.
+- V5 — `role` в `users`.
+- V6 — seed admin user.
 
----
-
-## Пакеты — что где живёт
+## Пакеты — что где
 
 ```
 com.claims.mvp/
 ├── claim/
-│   ├── controller/         — ClaimController, DocumentController
+│   ├── controller/           ClaimController, DocumentController
 │   ├── service/
-│   │   ├── lifecycle/      — ClaimLifecycleServiceImpl (оркестратор)
-│   │   ├── workflow/       — FSM: переходы + event type lookup
-│   │   ├── documents/      — ClaimDocumentsServiceImpl (merge/map документов)
-│   │   ├── storage/        — DocumentStorageServiceImpl (диск + MIME-валидация)
+│   │   ├── lifecycle/        ClaimLifecycleServiceImpl       — оркестратор
+│   │   ├── workflow/         ClaimWorkflowServiceImpl        — FSM
+│   │   ├── documents/        ClaimDocumentsServiceImpl       — merge документов в claim
+│   │   ├── storage/          DocumentStorageServiceImpl      — диск + MIME-валидация
 │   │   └── letter/
-│   │       ├── ClaimLetterServiceImpl  (делегатор)
-│   │       └── strategy/   — LetterStrategy + DelayLetterStrategy,
-│   │                          CancellationLetterStrategy, MissedConnectionLetterStrategy,
-│   │                          BaggageDelayedLetterStrategy  [+ Lost, Damaged — Week 2]
-│   ├── dao/                — ClaimRepository, BoardingDocumentsRepository
+│   │       ├── ClaimLetterServiceImpl                         — делегатор
+│   │       └── strategy/     LetterStrategy + 6 реализаций
+│   ├── dao/                  ClaimRepository, BoardingDocumentsRepository
 │   ├── dto/request|response/
-│   ├── mapper/             — MapStruct: ClaimMapper, ClaimEntityMapper, DocumentMapper
-│   ├── model/              — Claim, Flight, Issue, EuContext, BoardingDocuments
-│   └── enums/              — ClaimStatus, IssueType, DocumentTypes, EventTypes
+│   ├── mapper/               ClaimMapper, ClaimEntityMapper, DocumentMapper (MapStruct)
+│   ├── model/                Claim, Flight, Issue, EuContext, BoardingDocuments
+│   └── enums/                ClaimStatus, IssueType, DocumentTypes, EventTypes
 │
 ├── eligibility/
-│   ├── service/            — EligibilityServiceImpl (делегатор)
-│   ├── strategy/           — EligibilityStrategy + DelayEligibilityStrategy,
-│   │                          CancellationEligibilityStrategy, MissedConnectionEligibilityStrategy,
-│   │                          BaggageDelayedEligibilityStrategy  [+ Lost, Damaged — Week 2]
-│   └── dto/response/       — EligibilityResult
+│   ├── service/              EligibilityServiceImpl          — делегатор (pure)
+│   ├── strategy/             EligibilityStrategy + 6 реализаций
+│   └── dto/response/         EligibilityResult
 │
 ├── notifications/
-│   ├── NotificationService              — интерфейс (sendClaimCreated, sendClaimSubmitted)
-│   ├── EmailNotificationService         — реализация: JavaMailSender + @TransactionalEventListener
+│   ├── NotificationService                                    — интерфейс
+│   ├── EmailNotificationService                               — JavaMailSender + listeners
 │   └── events/
-│       ├── ClaimCreatedEvent            — record(Claim claim)
-│       └── ClaimStatusTransitionedEvent — record(Claim claim, ClaimStatus from, ClaimStatus to)
+│       ├── ClaimCreatedEvent                                  — record(Claim)
+│       └── ClaimStatusTransitionedEvent                       — record(Claim, from, to)
 │
-├── events/                 — ClaimEvents аудит-лог
-│   ├── dao/                — EventsRepository
-│   ├── model/              — ClaimEvents
-│   └── dto/response/       — EventsResponse
+├── scheduler/
+│   ├── FollowUpSchedulerService                               — @Scheduled cron 9:00
+│   └── controller/           SchedulerAdminController         — manual trigger (dev only)
+│
+├── security/
+│   ├── SecurityConfig                                         — JWT chain + @EnableMethodSecurity
+│   ├── JwtAuthFilter                                          — извлекает токен, ставит SecurityContext
+│   ├── JwtService                                             — generate/parse/validate
+│   ├── JwtAuthentication                                      — кастомный Authentication
+│   ├── controller/           AuthController                   — /api/auth/register, /login
+│   ├── service/              AuthServiceImpl
+│   └── dto/                  RegisterRequest, LoginRequest, AuthResponse
+│
+├── events/                   ClaimEvents аудит-лог
+│   ├── dao/                  EventsRepository (+ findClaimIdsEligibleForFollowUp)
+│   ├── model/                ClaimEvents
+│   └── dto/response/         EventsResponse
 │
 ├── user/
-│   ├── controller/         — UserController
-│   ├── service/            — UserServiceImpl
-│   ├── dao/                — UserRepository
-│   ├── model/              — User
-│   ├── mapper/             — UserMapper
-│   └── dto/                — CreateUserRequest, UserResponse
+│   ├── controller/           UserController, AdminUserController
+│   ├── service/              UserServiceImpl
+│   ├── dao/                  UserRepository (findByEmail)
+│   ├── model/                User, Role
+│   ├── mapper/               UserMapper
+│   └── dto/                  CreateUserRequest, ChangeRoleRequest, UserResponse
 │
-├── exception/              — GlobalExceptionHandler, DuplicateUserException
-└── web/                    — HomeController (Thymeleaf /)
+├── exception/                GlobalExceptionHandler, DuplicateUserException
+└── web/                      HomeController (Thymeleaf /)
 ```
 
-**Статика:**
-- `src/main/resources/templates/home.html` — Thymeleaf главная страница.
-- `src/main/resources/static/app.html` — standalone frontend-прототип (пока хардкод, Week 2 Day 5 — реальный API).
+**Frontend** (`/frontend/`):
+```
+src/
+├── App.tsx                   Router (Dashboard, Claims, NewClaim)
+├── components/Sidebar.tsx
+├── pages/
+│   ├── DashboardPage.tsx
+│   ├── ClaimsPage.tsx
+│   └── NewClaimPage.tsx
+├── api/claims.ts             fetch-обёртки: getClaims, getClaimById, getClaimLetter,
+│                              transitionClaim, CreateClaim
+├── App.css, index.css, main.tsx
+```
 
----
+Frontend пока **без auth-интеграции** — `fetch` без JWT-заголовка. Это первое что нужно подключить.
 
-## Сервисы — кто за что отвечает
+## Сервисы — кто за что
 
 ### `ClaimLifecycleServiceImpl` (lifecycle/)
 
 Главный оркестратор. Любая операция над claim проходит через него.
 
-Коллабораторы (8 зависимостей):
-`ClaimRepository`, `UserRepository`, `EligibilityService`, `ClaimWorkflowService`, `ClaimDocumentsService`, `EventsRepository`, `ClaimLetterService`, `ObjectMapper`, `ApplicationEventPublisher`.
+Коллабораторы (8): `ClaimRepository`, `UserRepository`, `EligibilityService`, `ClaimWorkflowService`, `ClaimDocumentsService`, `EventsRepository`, `ClaimLetterService`, `ObjectMapper`, `ApplicationEventPublisher`.
 
-> **Важно:** `NotificationService` больше **не инжектируется** в Lifecycle. Нотификации публикуются через `ApplicationEventPublisher` как domain events. Это развязывает транзакцию и side-effect.
+**`NotificationService` НЕ инжектируется** — нотификации публикуются как domain events, listeners слушают.
 
 Операции:
-- `createClaim` → eligibility check → save → `publishEvent(ClaimCreatedEvent)`.
-- `updateClaimDetails` → partial update → recalc derived fields → save.
-- `transition` → FSM validate → save → audit event → `publishEvent(ClaimStatusTransitionedEvent)`.
-- Read: `getClaimById`, `getAllClaims`, `getClaimEvents`, `getClaimLetter`.
+- `createClaim` → `resolveClaimOwner` (USER берёт свой email из SecurityContext, ADMIN может явно передать `userId`) → eligibility → save → `publishEvent(ClaimCreatedEvent)`.
+- `updateClaimDetails` → `assertEditable` → partial update → recalc → save.
+- `transition` → FSM validate → save claim+event → `publishEvent(ClaimStatusTransitionedEvent)`.
+- Read: `getClaimById`, `getAllClaims`, `getClaimEvents`, `getClaimLetter` — каждый делает `assertOwnerOrAdmin(claim)`.
 
-### `ClaimWorkflowServiceImpl` (workflow/)
+### `ClaimWorkflowServiceImpl`
 
-Все правила про статусы и переходы. Чистый — без БД, без side-effects.
+FSM. Без БД, без I/O.
 
-- `assertTransitionAllowed(from, to)` — валидация по `ALLOWED_TRANSITIONS`. 409 если нельзя.
-- `autoPreSubmitStatus(current, hasAllDocs)` → DOCS_REQUESTED или READY_TO_SUBMIT.
+- `assertTransitionAllowed(from, to)` — `ALLOWED_TRANSITIONS` + `IllegalStateException` (→409).
+- `autoPreSubmitStatus(current, hasAllDocs)` → DOCS_REQUESTED / READY_TO_SUBMIT.
 - `assertEditable(status)` — запрещает редактирование после SUBMITTED.
-- `eventType(target)` → EventTypes.
+- `eventType(target)` → EventTypes (Map dispatch).
 
-**Ничто за пределами этого класса не должно проверять или менять `ClaimStatus`.**
+**Только этот класс видит/меняет `ClaimStatus`.** `if (claim.getStatus()...)` где-то ещё — баг архитектуры.
 
-### `EligibilityServiceImpl` (eligibility/service/)
+### `EligibilityServiceImpl`
 
-**Pure rule engine** — никакого I/O, только функция от входных данных.
+Pure rule engine. Делегирует в `EligibilityStrategy` по `IssueType`. Конструктор инжектит `List<EligibilityStrategy>`, строит `Map<IssueType, EligibilityStrategy>`.
 
-Принимает `(Issue, Flight, EuContext, List<BoardingDocuments>)` → `EligibilityResult { eligible, compensationAmount, requiredDocuments }`.
-
-**Архитектура стратегий** (с Week 1):
-- Конструктор инжектирует `List<EligibilityStrategy>`, строит `Map<IssueType, EligibilityStrategy>`.
-- `evaluate()` — делегирует в стратегию по `issue.getType()`. Никакой бизнес-логики в самом сервисе.
-- Добавление нового типа = новый `@Component` класс, реализующий `EligibilityStrategy`. Сервис не трогается.
-
-Текущие стратегии:
-| Стратегия | Тип | Правовая база |
-|-----------|-----|---------------|
-| `DelayEligibilityStrategy` | DELAY | EU 261, ≥180 мин, distance table |
+| Стратегия | Тип | База |
+|-----------|-----|------|
+| `DelayEligibilityStrategy` | DELAY | EU 261, ≥180 мин, distance table 250/400/600 |
 | `CancellationEligibilityStrategy` | CANCELLATION | EU 261, notice ≤14 дней |
-| `MissedConnectionEligibilityStrategy` | MISSED_CONNECTION | EU 261, итог ≥180 мин |
-| `BaggageDelayedEligibilityStrategy` | BAGGAGE_DELAYED | Montreal Art.19, ≥6ч, per-day €50 |
-| `BaggageLostEligibilityStrategy` | BAGGAGE_LOST | Montreal Art.17, >504ч (21 дней) — Week 2 |
-| `BaggageDamagedEligibilityStrategy` | BAGGAGE_DAMAGED | Montreal Art.17§2, ≤7 дней с доставки — Week 2 |
+| `MissedConnectionEligibilityStrategy` | MISSED_CONNECTION | EU 261, итоговая ≥180 мин |
+| `BaggageDelayedEligibilityStrategy` | BAGGAGE_DELAYED | Montreal Art.19, ≥6ч, per-day €50 cap €500 |
+| `BaggageLostEligibilityStrategy` | BAGGAGE_LOST | Montreal Art.17, >504ч (21 день), €1000 flat |
+| `BaggageDamagedEligibilityStrategy` | BAGGAGE_DAMAGED | Montreal Art.17§2, ≤7 дней с доставки |
 
-### `ClaimLetterServiceImpl` (letter/)
+Добавление нового типа = новый `@Component implements EligibilityStrategy`. Сервис не трогается.
 
-Генерирует текст претензионного письма. **Та же стратегийная архитектура** что у Eligibility.
+### `ClaimLetterServiceImpl`
 
-- Конструктор инжектирует `List<LetterStrategy>` → `Map<IssueType, LetterStrategy>`.
-- Валидация preconditions (claim/user/flight/issue не null) остаётся в сервисе — общая для всех стратегий.
-- Каждая стратегия отвечает за полный `LetterResponse { subject, body }` — намеренно, тела для EU 261 и Montreal принципиально разные.
+Та же стратегийная архитектура. `LetterStrategy` per `IssueType`, шесть реализаций. Каждая отдаёт полный `LetterResponse{subject, body}` — тела для EU 261 и Montreal принципиально разные.
 
-### `EmailNotificationService` (notifications/)
+Validation precondition'ов (claim/user/flight/issue не null) — в самом сервисе, до делегирования.
 
-Отправляет письма в реакции на domain events. Реализует `NotificationService`.
+### `EmailNotificationService`
 
-**Event listeners** (`@TransactionalEventListener(AFTER_COMMIT)`):
-- `onClaimCreated(ClaimCreatedEvent)` → `sendClaimCreated` — письмо пользователю.
-- `onClaimTransitioned(ClaimStatusTransitionedEvent)` → диспетчер по `event.to()`.
+Реализует `NotificationService` (методы `sendClaimCreated`, `sendClaimSubmitted`) И слушает события через `@TransactionalEventListener(AFTER_COMMIT)`.
 
-**Map-диспетчер** `transitionHandlers: Map<ClaimStatus, Consumer<Claim>>`:
-- `SUBMITTED` → `sendClaimSubmitted` (пользователю) + `sendClaimLetterToAirline` (авиакомпании, Week 2 Day 3).
-- Добавление новой нотификации = одна строка в Map.
+- `onClaimCreated(ClaimCreatedEvent)` → `sendClaimCreated`.
+- `onClaimTransitioned(ClaimStatusTransitionedEvent)` → диспетчер `Map<ClaimStatus, Consumer<Claim>>` вызывает нужный sender по `event.to()`.
 
-Конструктор принимает `(JavaMailSender mailSender, @Value("${app.mail.from}") String from)`.
+`AFTER_COMMIT` гарантирует: если транзакция откатилась — email не уйдёт. Email failure ловится в catch внутри `send(...)`, основной flow не страдает.
 
-> **Паттерн AFTER_COMMIT:** нотификация гарантированно фаерится только после успешного коммита транзакции. Если транзакция откатилась — письмо не уйдёт.
+### `FollowUpSchedulerService`
 
-### `ClaimDocumentsServiceImpl` (documents/)
+`@Scheduled(cron = "0 0 9 * * *")`. Раз в день:
+1. `EventsRepository.findClaimIdsEligibleForFollowUp(threshold)` — claims в SUBMITTED >14 дней без ответа.
+2. Ставит синтетический `ROLE_ADMIN` в `SecurityContextHolder` (cron бежит без HTTP-запроса).
+3. Для каждого claim вызывает `claimService.transition(id, FOLLOW_UP_SENT)`.
+4. Чистит `SecurityContextHolder` в `finally`.
 
-Маппинг и merge документов. Чистый — без I/O.
-- `mapForCreate` — DTO → entities.
-- `mergeForUpdate` — merge по типу (один тип = одна запись).
-- `uploadedTypes` → Set\<DocumentTypes\>.
+### `DocumentStorageServiceImpl`
 
-### `DocumentStorageServiceImpl` (storage/)
-
-Физическое хранение файлов на диске.
-- Magic bytes валидация, лимит 5MB, allowlist MIME.
+Файловое хранение + MIME-валидация по магическим байтам.
 - Path traversal защита через `getSafePath`.
+- Лимит 5MB.
+- Allowlist: `application/pdf`, `image/jpeg`, `image/png`.
+- Ownership-проверка в `uploadDocument`, `downloadDocument`/`getDocument`, `deleteDocument` — non-admin может только свои документы.
 
----
+### `AuthServiceImpl`
 
-## Поток: создание claim
+Регистрация: создание User с `passwordHash` (BCrypt) + дефолтная `Role.USER` → выдача JWT с `email` (sub) + `role` (claim).
 
+Login: проверка пароля → JWT с актуальной ролью из БД.
+
+## Security в деталях
+
+### Production (`app.security.enabled=true` по умолчанию)
+
+`SecurityConfig` — stateless JWT chain:
+- Public: `/api/auth/**`, `/`, `/app.html`, `/css/**`, `/js/**`.
+- Всё остальное `authenticated()`.
+- `@EnableMethodSecurity` — `@PreAuthorize` работает.
+
+`JwtAuthFilter` встроен `addFilterBefore(UsernamePasswordAuthenticationFilter)`, читает `Authorization: Bearer <token>`, валидирует, ставит `JwtAuthentication` в SecurityContext.
+
+### `@PreAuthorize` распределение
+
+| Endpoint | Доступ |
+|----------|--------|
+| `POST /api/claims` | `isAuthenticated()` (USER создаёт свой, ADMIN может через `userId`) |
+| `GET /api/claims/{id}` | `isAuthenticated()` + ownership |
+| `GET /api/claims` (list) | `hasRole('ADMIN')` |
+| `PATCH /api/claims/{id}/update` | `hasAnyRole('MODERATOR','ADMIN')` |
+| `POST /api/claims/{id}/transition` | `hasAnyRole('MODERATOR','ADMIN')` |
+| `GET /api/claims/{id}/events`/`letter` | `isAuthenticated()` + ownership |
+| `POST/GET/DELETE /api/documents/**` | `isAuthenticated()` + ownership; delete — only `MODERATOR/ADMIN` |
+| `/api/admin/users/**` | `hasRole('ADMIN')` (class-level) |
+| `/api/scheduler/**` | `hasAnyRole('ADMIN')` (class-level, profile=dev) |
+
+### Ownership
+
+`assertOwnerOrAdmin(claim)` в lifecycle и `DocumentStorageServiceImpl`:
+- `auth == null || !isAuthenticated()` → `AccessDeniedException`.
+- `ROLE_ADMIN` → пропуск.
+- `claim.getUser().getEmail() != auth.getName()` → `AccessDeniedException`.
+
+**MODERATOR здесь не учитывается** — открытый вопрос продуктовой логики (нужно ли модератору видеть claims клиента которого ведёт).
+
+### Tests (`app.security.enabled=false` через `IntegrationTestBase`)
+
+- Production `SecurityConfig` НЕ загружается (`@ConditionalOnProperty(matchIfMissing=true)`).
+- `TestSecurityConfig` (`havingValue="false"`) загружается — permit-all chain + custom filter ставит синтетический `ROLE_ADMIN` user в SecurityContext + provides `PasswordEncoder` bean.
+- В `ClaimServiceImplTest` (Mockito unit) `@BeforeEach` руками выставляет `ROLE_ADMIN` auth, в `@AfterEach` чистит.
+
+## Флоу запросов
+
+### createClaim
 ```
-POST /api/claims
-    │
-    ▼
-ClaimLifecycleService.createClaim
-    ├─> UserRepository.findById
-    ├─> ClaimEntityMapper (flight, euContext, issue → entities)
-    ├─> ClaimDocumentsService.mapForCreate
-    │
-    ├─> recalcDerivedFields:
-    │     ├─> EligibilityService.evaluate
-    │     │     └─> Map<IssueType, EligibilityStrategy>.get(type).evaluate()
-    │     ├─> ClaimDocumentsService.uploadedTypes
-    │     └─> ClaimWorkflowService.autoPreSubmitStatus
-    │
-    ├─> ClaimRepository.save
-    ├─> ApplicationEventPublisher.publishEvent(ClaimCreatedEvent)
-    │     └─> [AFTER_COMMIT] EmailNotificationService.onClaimCreated
-    │               └─> mailSender.send (пользователю)
-    └─> ClaimMapper.toResponse
+POST /api/claims  +JWT
+  → JwtAuthFilter ставит SecurityContext
+  → @PreAuthorize("isAuthenticated()") пускает
+  → @Transactional начинает
+    → resolveClaimOwner(userId) — ADMIN: findById, USER: findByEmail из ctx
+    → MapStruct map flight/issue/euContext
+    → mapForCreate(documents)
+    → recalcDerivedFields → eligibility + auto-status
+    → claimRepository.save(claim)
+    → eventPublisher.publishEvent(ClaimCreatedEvent)  [pending]
+  → COMMIT
+  → AFTER_COMMIT: EmailNotificationService.onClaimCreated → SMTP
+  → response
 ```
 
-## Поток: переход статуса
-
+### transition
 ```
-POST /api/claims/{id}/transition
-    │
-    ▼
-ClaimLifecycleService.transition
-    ├─> ClaimRepository.findWithDetailsById
-    ├─> ClaimWorkflowService.assertTransitionAllowed   [409 если нельзя]
-    ├─> ClaimWorkflowService.eventType(target)
-    ├─> buildTransitionPayload (JSON)
-    ├─> claim.setStatus(target)
-    ├─> ClaimRepository.save
-    ├─> EventsRepository.save                          [аудит]
-    ├─> ApplicationEventPublisher.publishEvent(ClaimStatusTransitionedEvent)
-    │     └─> [AFTER_COMMIT] EmailNotificationService.onClaimTransitioned
-    │               └─> transitionHandlers.get(to)?.accept(claim)
-    └─> ClaimMapper.toResponse
+POST /api/claims/{id}/transition  +JWT
+  → @PreAuthorize("hasAnyRole('MODERATOR','ADMIN')")
+  → @Transactional
+    → findWithDetailsById (EntityGraph)
+    → assertTransitionAllowed
+    → save claim + audit event
+    → publishEvent(ClaimStatusTransitionedEvent)
+  → COMMIT
+  → AFTER_COMMIT: dispatcher по target → sendClaimSubmitted/etc
+  → response
 ```
 
-## Поток: добавление нового типа кейса
-
+### Scheduled follow-up
 ```
-Шаг 1: IssueType.java — добавить enum-значение
-Шаг 2: EligibilityStrategy — новый @Component класс
-Шаг 3: LetterStrategy — новый @Component класс
-Шаг 4: Тесты (юнит + интеграционный)
-Шаг 5: ClaimServiceImplTest.setUp() — добавить стратегии в List.of(...)
-
-Сервисы EligibilityServiceImpl и ClaimLetterServiceImpl — не трогать.
-Spring подхватит @Component автоматически через List<Strategy> инъекцию.
+cron 9:00 → checkForFollowUps
+  → findClaimIdsEligibleForFollowUp(now-14d)
+  → SecurityContextHolder.setAuthentication(systemAdmin)
+  try {
+    for each id: claimService.transition(id, FOLLOW_UP_SENT)
+      [та же цепочка, что выше; email уходит после commit]
+  } finally { SecurityContextHolder.clearContext() }
 ```
 
----
+## Архитектурные правила
 
-## Где какие правила живут
+1. **`ClaimLifecycleServiceImpl`** — единственный orchestrator. Контроллер не вызывает другие сервисы напрямую.
+2. **`ClaimWorkflowServiceImpl`** — единственное место где видят/меняют `ClaimStatus`.
+3. **`EligibilityServiceImpl`** — pure, без I/O.
+4. **Все стратегии — `@Component`**, добавление типа = новая стратегия. Сервисы не трогаются.
+5. **Migrations через Flyway**. Никаких `ddl-auto=create/update` в проде.
+6. **Notifications — через events**, lifecycle не знает об email/SMS.
+7. **Ownership — в сервисе** (lifecycle/storage), не в контроллере; `@PreAuthorize` для role-check, ownership — рантайм-проверка.
+8. **Все scheduled-методы** должны выставлять synthetic `SecurityContext` перед вызовом `@PreAuthorize`-защищённых методов.
 
-| Правило | Где менять |
-|---------|------------|
-| Разрешённые переходы статусов | `ClaimWorkflowServiceImpl.ALLOWED_TRANSITIONS` |
-| Event-type при переходе | `ClaimWorkflowServiceImpl.EVENT_BY_TARGET` |
-| Eligible / compensation / required docs | `*EligibilityStrategy` по типу кейса |
-| Шаблон письма в авиакомпанию | `*LetterStrategy` по типу кейса |
-| Нотификации по статусу | `EmailNotificationService.transitionHandlers` Map |
-| Допустимые MIME при загрузке | `DocumentStorageServiceImpl.ALLOWED_MIME_TYPES` |
-| HTTP-коды для исключений | `GlobalExceptionHandler` |
+## Известные ограничения
 
----
-
-## Тесты — структура
-
-| Файл | Тип | Что тестирует |
-|------|-----|---------------|
-| `ClaimServiceImplTest` | Unit (MockitoExtension) | Lifecycle orchestration, event publication, FSM transitions |
-| `EligibilityServiceImplTest` | Unit | Все стратегии eligibility по каждому типу кейса |
-| `ClaimIntegrationTest` | Integration (TestContainers) | Full HTTP flow, статусы, события, письма, нотификации |
-| `EmailNotificationServiceTest` | Unit | Listeners, sendClaimCreated, sendClaimSubmitted, error suppression |
-| `ClaimControllerTest` | Unit (MockMvc) | HTTP-слой, валидация запросов |
-| `UserControllerTest` | Unit (MockMvc) | User CRUD, duplicate email |
-
-**Ключевые особенности:**
-- Интеграционные тесты расширяют `IntegrationTestBase` (TestContainers PostgreSQL).
-- `@MockitoBean JavaMailSender` в `ClaimIntegrationTest` — мокает транспорт, но оставляет `EmailNotificationService` живым вместе с его listeners.
-- `ClaimServiceImplTest` вручную собирает `ClaimLifecycleServiceImpl` через конструктор со всеми стратегиями — Spring-контекст не поднимается.
-
----
-
-## Принципы, которые держат архитектуру чистой
-
-1. **Lifecycle — единственная точка входа.** Контроллер не вызывает Workflow / Eligibility / Letters напрямую.
-2. **Workflow — единственное место, где видят `ClaimStatus`.** `if (claim.getStatus() == ...)` вне этого класса — баг архитектуры.
-3. **Eligibility — без I/O.** Чистая функция, аргументами приходит всё что нужно.
-4. **Стратегии — через `@Component` + `List<T>` инъекцию.** Добавление типа кейса не требует правок в сервисах.
-5. **Нотификации — через domain events, AFTER_COMMIT.** Lifecycle не знает о каналах доставки.
-6. **MapStruct для всех конвертаций.** Ручной маппинг только в тестах.
-7. **Flyway only** для схемы. Никакого `ddl-auto=create/update`.
-
----
-
-## Known issues (не трогать без задачи)
-
-- `BoardingDocuments.deletedAt` — поле есть, soft-delete логики нет.
-- `ClaimEvents.payload` хранится как `TEXT`, не `jsonb` — нужно перед аналитикой Phase 6.
-- `Claim` `@OneToOne` с `LAZY` — де-факто EAGER из-за Hibernate ограничений на non-owning side. Требует bytecode enhancement для реального lazy.
-- `app.html` — данные хардкодены, подключение к API запланировано на Week 2 Day 5.
+- `BoardingDocuments.deletedAt` — поле есть, soft-delete не реализован.
+- `ClaimEvents.payload` — `TEXT`, не `jsonb`. Перед аналитикой мигрировать.
+- `Claim.@OneToOne` (Flight/Issue/EuContext) фактически EAGER несмотря на `fetch=LAZY` (Hibernate ограничение для non-owning side, нужен bytecode enhancement).
+- MODERATOR в `assertOwnerOrAdmin` не учтён — открытый вопрос продукта.
+- Frontend без auth-интеграции (нет JWT-заголовка в `fetch`).
+- Inbound email parsing нет.
+- Локальное хранилище файлов — не S3.
+- SDR/EUR конверсия захардкожена.

@@ -5,15 +5,19 @@ import com.claims.mvp.claim.dto.response.ClaimResponse;
 import com.claims.mvp.claim.dto.response.LetterResponse;
 import com.claims.mvp.claim.enums.ClaimStatus;
 import com.claims.mvp.claim.enums.DocumentTypes;
+import com.claims.mvp.claim.enums.EventTypes;
 import com.claims.mvp.claim.enums.IssueType;
 import com.claims.mvp.events.dto.response.EventsResponse;
+import com.claims.mvp.scheduler.FollowUpSchedulerService;
 import com.claims.mvp.user.dto.request.CreateUserRequest;
 import com.claims.mvp.user.dto.response.UserResponse;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.client.RestClient;
 import java.time.LocalDate;
@@ -24,6 +28,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @org.springframework.boot.test.context.SpringBootTest(webEnvironment = org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ClaimIntegrationTest extends IntegrationTestBase {
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private FollowUpSchedulerService schedulerService;
 
     @LocalServerPort
     private int port;
@@ -758,7 +767,7 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         StatusChangeRequest rejectRequest = new StatusChangeRequest(ClaimStatus.REJECTED, "airline rejected the claim");
 
         ClaimResponse rejected = client().post()
-                .uri("/api/claims/" + created.getId() + "/transition")
+                .uri("/api/claims/" + followedUp.getId() + "/transition")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(rejectRequest)
                 .retrieve()
@@ -870,6 +879,81 @@ class ClaimIntegrationTest extends IntegrationTestBase {
         assertThat(response.getStatus()).isEqualTo(target);
         return response;
     }
+
+    @Test
+    void submitClaim_sendsLetterToAirline() {
+        UserResponse user = createUser("Airline Letter User", "airline-letter-user@example.com");
+
+        CreateClaimRequest createRequest = new CreateClaimRequest();
+        createRequest.setUserId(user.getId());
+        createRequest.setFlight(buildFlight(1800));
+        createRequest.setIssue(buildDelayIssue(220));
+        createRequest.setEuContext(buildEuContext(true, true));
+        createRequest.setDocuments(List.of(
+                buildDocument("airline-letter-ticket", DocumentTypes.TICKET),
+                buildDocument("airline-letter-boarding", DocumentTypes.BOARDING_PASS)
+        ));
+
+        ClaimResponse created = client().post()
+                .uri("/api/claims")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(createRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(created).isNotNull();
+        assertThat(created.getStatus()).isEqualTo(ClaimStatus.READY_TO_SUBMIT);
+
+        // Submit the claim
+        StatusChangeRequest submitRequest = new StatusChangeRequest(ClaimStatus.SUBMITTED, "submitted via UI");
+
+        ClaimResponse submitted = client().post()
+                .uri("/api/claims/" + created.getId() + "/transition")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(submitRequest)
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(submitted).isNotNull();
+        assertThat(submitted.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+
+        // Verify: mailSender.send called twice (user + airline)
+        org.mockito.Mockito.verify(mailSender, org.mockito.Mockito.times(3))
+                .send(org.mockito.ArgumentMatchers.any(org.springframework.mail.SimpleMailMessage.class));
+        // Verify: EMAIL_SENT event recorded in ClaimEvents
+        List<EventsResponse> events = client().get()
+                .uri("/api/claims/" + submitted.getId() + "/events")
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        assertThat(events).anyMatch(e -> e.getType() == EventTypes.EMAIL_SENT);
+    }
+
+    @Test
+    void scheduler_submittedClaimOlderThan14Days_transitionsToFollowUpSent() {
+        UserResponse user = createUser("Scheduler User", "scheduler@example.com");
+        ClaimResponse created = createReadyToSubmitClaim(user, "scheduler");
+        ClaimResponse submitted = submitClaim(created.getId(), "submitted");
+
+        backdateSubmittedEvent(submitted.getId(), 15);
+
+        schedulerService.checkForFollowUps();
+
+        ClaimResponse result = client().get()
+                .uri("/api/claims/" + submitted.getId())
+                .retrieve()
+                .body(ClaimResponse.class);
+
+        assertThat(result.getStatus()).isEqualTo(ClaimStatus.FOLLOW_UP_SENT);
+    }
+
+    private void backdateSubmittedEvent(Long claimId, int daysAgo) {
+        jdbcTemplate.update("""
+        UPDATE claim_events
+        SET created_at = NOW() - INTERVAL '%d days'
+        WHERE claim_id = ? AND type = 'LETTER_SUBMITTED'
+        """.formatted(daysAgo), claimId);
+    }
+
 
     private ClaimResponse submitClaim(Long id, String note) {
         return transitionClaim(id, ClaimStatus.SUBMITTED, note);

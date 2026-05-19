@@ -2,58 +2,93 @@
 
 ## Agent handoff
 
-**Read this first if you are a new model/session:** [docs/agent-handoff.md](docs/agent-handoff.md). It captures working format, tone, current in-progress task, common pitfalls.
+**Read this first if you are a new model/session:** [docs/agent-handoff.md](docs/agent-handoff.md). It captures working format, tone, current state, and common pitfalls.
 
 ## Where we are right now
 
-**Latest day:** [docs/daily/2026-05-06.md](docs/daily/2026-05-06.md)
-**Current week plan:** [docs/week-plan.md](docs/week-plan.md)
+**Latest day:** [docs/daily/2026-05-19.md](docs/daily/2026-05-19.md)
+**Current sprint:** [docs/week-plan.md](docs/week-plan.md)
 **Architecture map:** [docs/architecture-overview.md](docs/architecture-overview.md)
-**Long-term roadmap:** [docs/roadmap.md](docs/roadmap.md)
+**Roadmap (with progress):** [docs/roadmap.md](docs/roadmap.md)
 **TZ vs implementation:** [docs/tz-checklist.md](docs/tz-checklist.md)
 
-When starting a new session, read the latest daily snapshot first.
+When starting a new session, read agent-handoff first, then this file, then the latest daily snapshot.
 
 ## Stack
-Java 21, Spring Boot 4, PostgreSQL, Flyway, MapStruct, Lombok, TestContainers
+
+Java 21, Spring Boot 4, PostgreSQL, Flyway, MapStruct, Lombok, TestContainers, Spring Security + JWT, Spring Mail, Jackson 3 (`tools.jackson.databind`).
+
+Frontend: React 19 + Vite + TypeScript + React Router v7 (`/frontend/`).
 
 ## Package structure
+
 ```
 com.claims.mvp
-├── claim/          → core domain (controller, service, dao, dto, model, mapper, enums)
-│   ├── service/lifecycle/   ClaimLifecycleServiceImpl  ← orchestrator (god node, 17 edges)
-│   ├── service/workflow/    ClaimWorkflowServiceImpl   ← FSM transitions
-│   ├── service/documents/   ClaimDocumentsServiceImpl  ← document management
-│   ├── service/storage/     DocumentStorageServiceImpl ← file persistence + MIME validation
-│   └── service/letter/      ClaimLetterServiceImpl     ← delegator over LetterStrategy beans
-├── eligibility/    → pure rule engine, no side effects
-│   ├── service/             EligibilityServiceImpl (delegator over strategies)
-│   └── strategy/            EligibilityStrategy + per-IssueType impls (Delay, Cancellation)
-├── events/         → ClaimEvents audit log
-├── user/           → UserController → UserServiceImpl → UserRepository
-├── exception/      → GlobalExceptionHandler + ErrorResponse record
-└── web/            → HomeController (Thymeleaf home page)
+├── claim/                      core domain
+│   ├── controller/             ClaimController, DocumentController
+│   ├── service/lifecycle/      ClaimLifecycleServiceImpl  ← orchestrator
+│   ├── service/workflow/       ClaimWorkflowServiceImpl   ← FSM
+│   ├── service/documents/      ClaimDocumentsServiceImpl
+│   ├── service/storage/        DocumentStorageServiceImpl ← file storage + MIME
+│   └── service/letter/         ClaimLetterServiceImpl + 6 LetterStrategy impls
+├── eligibility/                pure rule engine
+│   ├── service/                EligibilityServiceImpl (delegator)
+│   └── strategy/               EligibilityStrategy + 6 impls (Delay, Cancellation,
+│                                  MissedConnection, Baggage{Delayed,Lost,Damaged})
+├── notifications/              event-driven email
+│   ├── NotificationService, EmailNotificationService
+│   └── events/                 ClaimCreatedEvent, ClaimStatusTransitionedEvent
+├── scheduler/                  FollowUpSchedulerService (@Scheduled cron 9:00)
+├── security/                   SecurityConfig, JwtAuthFilter, JwtService, AuthController
+├── events/                     ClaimEvents audit log
+├── user/                       UserController, AdminUserController, Role enum
+├── exception/                  GlobalExceptionHandler, DuplicateUserException
+└── web/                        HomeController (Thymeleaf /)
 ```
 
 ## Key architecture rules
-- **ClaimLifecycleServiceImpl** orchestrates all claim state changes — it calls WorkflowService, DocumentsService, EligibilityService, LetterService. Never bypass it from the controller.
-- **FSM transitions** live exclusively in `ClaimWorkflowServiceImpl`. Never check or mutate `ClaimStatus` outside this class.
-- **EligibilityService** is a pure function — no DB writes, no side effects. Keep it that way.
-- **MapStruct mappers** for all DTO ↔ entity conversions. Never write manual mapping code.
-- **Flyway only** for schema changes. Never use `ddl-auto=create` or `update`.
+
+- **`ClaimLifecycleServiceImpl`** orchestrates all claim operations. Controllers never call other services directly.
+- **`ClaimWorkflowServiceImpl`** is the only place that reads/mutates `ClaimStatus`. No `if (claim.getStatus() == ...)` elsewhere.
+- **`EligibilityServiceImpl`** is pure — no I/O. Delegates to `EligibilityStrategy` per `IssueType`.
+- **`ClaimLetterServiceImpl`** — same pattern via `LetterStrategy`.
+- **All strategies are `@Component`.** Adding a new claim type = one new strategy class. Services are not touched.
+- **Notifications go through events** (`ApplicationEventPublisher` + `@TransactionalEventListener(AFTER_COMMIT)`). Lifecycle does not know about email.
+- **Ownership in service layer** (lifecycle/storage), not in controllers. `@PreAuthorize` for role-checks; ownership is a runtime check (`assertOwnerOrAdmin`).
+- **Scheduled methods** must set a synthetic `SecurityContext` before invoking `@PreAuthorize`-protected services, then `clearContext` in `finally`.
+- **Migrations via Flyway only.** Never `ddl-auto=create/update` in prod. `ddl-auto=create-drop` is OK in tests via TestContainers.
+- **MapStruct for all DTO ↔ entity.** No manual mapping code.
+
+## Security model
+
+- JWT stateless (`SecurityConfig` chain + `JwtAuthFilter`).
+- 3 roles: `USER`, `MODERATOR`, `ADMIN` (in `Role` enum, stored on `User`).
+- Public: `/api/auth/**`, `/`, `/app.html`, static.
+- `@EnableMethodSecurity` — `@PreAuthorize` enforced on every controller method.
+- USER sees only own claims (ownership check). ADMIN sees all. MODERATOR is currently treated like USER for ownership — open product question.
+- Tests: `IntegrationTestBase` sets `app.security.enabled=false` via `@DynamicPropertySource`. Production `SecurityConfig` is then excluded via `@ConditionalOnProperty(matchIfMissing=true)`. `TestSecurityConfig` (loads on `havingValue="false"`) provides permit-all chain + `PasswordEncoder` bean.
 
 ## Known issues (do not introduce workarounds)
-- `BoardingDocuments.deletedAt` field exists but no soft-delete logic implemented (repository does not filter, no service writes the timestamp)
-- `ClaimEvents.payload` is stored as `TEXT`; consider migrating to `jsonb` before analytics work
-- `Claim` `@OneToOne` associations are technically `EAGER` despite `fetch = LAZY` annotation (Hibernate limitation on non-owning side; needs bytecode enhancement plugin to truly lazy-load)
+
+- `BoardingDocuments.deletedAt` field exists but no soft-delete logic implemented.
+- `ClaimEvents.payload` stored as `TEXT`; should be `jsonb` before analytics work.
+- `Claim` `@OneToOne` associations are technically `EAGER` despite `fetch = LAZY` (Hibernate non-owning side limitation; needs bytecode enhancement plugin).
+- `MODERATOR` role is not handled in `assertOwnerOrAdmin` — only `ROLE_ADMIN` bypasses ownership. Product decision pending.
+- `PasswordEncoder` bean lives in `SecurityConfig` and disappears when production config is disabled in tests; `TestSecurityConfig` redeclares it. Should move to a separate `CryptoConfig`.
+- Frontend has no auth integration — no JWT in headers, no login UI yet.
+- Outbound email is only sent to user, not to airline at SUBMITTED. Closing this is sprint-1 priority.
+- Local file storage (`uploads/`), not S3. Need to migrate before scale.
 
 ## Testing rules
-- Integration tests extend `IntegrationTestBase` which spins up a real PostgreSQL via TestContainers
-- Unit tests in `ClaimServiceImplTest` and `EligibilityServiceImplTest` — mock all dependencies
-- Do not modify tests unless the task explicitly requires it
-- Do not add `@MockBean` where the real bean works fine with TestContainers
+
+- Integration tests extend `IntegrationTestBase` (TestContainers Postgres + `app.security.enabled=false`).
+- Unit tests under `ClaimServiceImplTest` and `EligibilityServiceImplTest` use Mockito; security context is set in `@BeforeEach` and cleared in `@AfterEach`.
+- WebMvcTest for controllers uses `@MockitoBean` (Spring Boot 4) — not deprecated `@MockBean`.
+- Do not mock `NotificationService` in integration tests — it kills the `@TransactionalEventListener` registration. Mock `JavaMailSender` instead.
 
 ## What to always use
-- `@RequiredArgsConstructor` + `final` fields for injection (no `@Autowired`)
-- `Optional.orElseThrow(EntityNotFoundException::new)` for repo lookups
-- `ClaimStatus` enum for all status references — never use raw strings
+
+- `@RequiredArgsConstructor` + `final` fields for injection (no `@Autowired`).
+- `Optional.orElseThrow(EntityNotFoundException::new)` for repo lookups.
+- `ClaimStatus` / `IssueType` / `EventTypes` enums — never raw strings.
+- `Boolean.TRUE.equals(field)` to safely compare nullable `Boolean` (don't rely on autounbox).

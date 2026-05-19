@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClaimsMVP — Airline Claims Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-root: #0b0b0e;
+            --bg-sidebar: #0e0e12;
+            --bg-main: #0b0b0e;
+            --bg-card: #131317;
+            --bg-card-hover: #18181d;
+            --bg-input: #16161b;
+            --bg-badge: #1a1a20;
+            --bg-letter: #0e0e13;
+            --bg-progress-dot: #1c1c22;
+            --border: #222228;
+            --border-light: #28282f;
+            --border-card: #1e1e25;
+            --text-primary: #e8e8ed;
+            --text-secondary: #a5a5b0;
+            --text-tertiary: #6b6b78;
+            --text-muted: #52525e;
+            --accent: #6366f1;
+            --accent-hover: #5558e0;
+            --accent-light: rgba(99, 102, 241, 0.10);
+            --accent-glow: rgba(99, 102, 241, 0.18);
+            --green: #22c55e;
+            --green-bg: rgba(34, 197, 94, 0.10);
+            --emerald: #10b981;
+            --emerald-bg: rgba(16, 185, 129, 0.10);
+            --red: #ef4444;
+            --red-bg: rgba(239, 68, 68, 0.10);
+            --yellow: #f59e0b;
+            --yellow-bg: rgba(245, 158, 11, 0.10);
+            --blue: #3b82f6;
+            --blue-bg: rgba(59, 130, 246, 0.10);
+            --purple: #8b5cf6;
+            --purple-bg: rgba(139, 92, 246, 0.10);
+            --gray: #6b7280;
+            --gray-bg: rgba(107, 114, 128, 0.10);
+            --indigo-badge-bg: rgba(99, 102, 241, 0.12);
+            --sidebar-width: 240px;
+            --detail-panel-width: 400px;
+            --radius-sm: 6px;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 14px;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
+            --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
+            --shadow-panel: -4px 0 20px rgba(0, 0, 0, 0.45), -1px 0 0 rgba(255, 255, 255, 0.03);
+            --transition-fast: 140ms ease;
+            --transition-smooth: 200ms ease;
+            --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 15px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-root);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+            letter-spacing: -0.01em;
+        }
+
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2e2e38;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3e3e4a;
+        }
+
+        /* ── SIDEBAR ─────────────────────────── */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: var(--sidebar-width);
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            padding: 0 16px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 22px 8px 20px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 8px;
+        }
+        .sidebar-logo .logo-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: var(--radius-sm);
+            background: var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+        }
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius);
+            text-decoration: none;
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: all var(--transition-fast);
+            cursor: pointer;
+            letter-spacing: -0.005em;
+        }
+        .sidebar-nav a:hover {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+        }
+        .sidebar-nav a.active {
+            background: var(--accent-light);
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .sidebar-nav a .nav-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+        .sidebar-nav a.active .nav-dot {
+            opacity: 1;
+            background: var(--accent);
+        }
+        .sidebar-footer {
+            padding: 14px 8px;
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            letter-spacing: 0.01em;
+        }
+
+        /* ── MAIN CONTENT ────────────────────── */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 100vh;
+            padding: 28px 32px 60px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        /* ── SECTION HEADERS ─────────────────── */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+        }
+        .section-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            font-weight: 500;
+            letter-spacing: 0.01em;
+        }
+        .section-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 0;
+            opacity: 0.7;
+        }
+        .section-block {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            padding: 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* ── STAT CARDS ──────────────────────── */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            padding: 18px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: var(--shadow-sm);
+            transition: border-color var(--transition-fast);
+        }
+        .stat-card:hover {
+            border-color: var(--border-light);
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            letter-spacing: 0.01em;
+            text-transform: uppercase;
+        }
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+        .stat-value.accent {
+            color: var(--accent);
+        }
+        .stat-sub {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            font-weight: 400;
+        }
+
+        /* ── TABLES ──────────────────────────── */
+        .table-wrapper {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        table thead th {
+            text-align: left;
+            padding: 11px 14px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: var(--text-tertiary);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            background: transparent;
+        }
+        table tbody td {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-primary);
+            white-space: nowrap;
+            font-weight: 500;
+            letter-spacing: -0.005em;
+        }
+        table tbody tr {
+            transition: background var(--transition-fast);
+            cursor: pointer;
+        }
+        table tbody tr:hover {
+            background: var(--bg-card-hover);
+        }
+        table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .cell-id {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+        }
+        .cell-mono {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            letter-spacing: 0.02em;
+        }
+        .cell-secondary {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+        }
+
+        /* ── BADGES ──────────────────────────── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+            line-height: 1.3;
+        }
+        .badge-gray {
+            background: var(--gray-bg);
+            color: #9ca3af;
+        }
+        .badge-yellow {
+            background: var(--yellow-bg);
+            color: #fbbf24;
+        }
+        .badge-blue {
+            background: var(--blue-bg);
+            color: #60a5fa;
+        }
+        .badge-indigo {
+            background: var(--indigo-badge-bg);
+            color: #818cf8;
+        }
+        .badge-purple {
+            background: var(--purple-bg);
+            color: #a78bfa;
+        }
+        .badge-green {
+            background: var(--green-bg);
+            color: #4ade80;
+        }
+        .badge-red {
+            background: var(--red-bg);
+            color: #f87171;
+        }
+        .badge-emerald {
+            background: var(--emerald-bg);
+            color: #34d399;
+        }
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-right: 6px;
+            flex-shrink: 0;
+        }
+        .badge-dot.gray {
+            background: #9ca3af;
+        }
+        .badge-dot.yellow {
+            background: #fbbf24;
+        }
+        .badge-dot.blue {
+            background: #60a5fa;
+        }
+        .badge-dot.indigo {
+            background: #818cf8;
+        }
+        .badge-dot.purple {
+            background: #a78bfa;
+        }
+        .badge-dot.green {
+            background: #4ade80;
+        }
+        .badge-dot.red {
+            background: #f87171;
+        }
+        .badge-dot.emerald {
+            background: #34d399;
+        }
+
+        /* ── SEARCH INPUT ────────────────────── */
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 9px 14px;
+            width: 320px;
+            transition: border-color var(--transition-fast);
+            margin-bottom: 16px;
+        }
+        .search-box:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+        .search-box .search-icon {
+            color: var(--text-tertiary);
+            flex-shrink: 0;
+            font-size: 0.9rem;
+        }
+        .search-box input {
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            width: 100%;
+            letter-spacing: -0.005em;
+        }
+        .search-box input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* ── CLAIMS SECTION LAYOUT ───────────── */
+        .claims-layout {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            background: var(--bg-card);
+            box-shadow: var(--shadow-sm);
+        }
+        .claims-table-area {
+            flex: 1;
+            min-width: 0;
+            padding: 20px;
+        }
+        .claims-table-area .search-box {
+            margin-bottom: 14px;
+        }
+
+        /* ── DETAIL PANEL ────────────────────── */
+        .detail-panel {
+            width: var(--detail-panel-width);
+            flex-shrink: 0;
+            border-left: 1px solid var(--border);
+            background: var(--bg-card);
+            padding: 22px 20px;
+            overflow-y: auto;
+            max-height: 620px;
+            box-shadow: var(--shadow-panel);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .detail-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .detail-panel-id {
+            font-family: var(--font-mono);
+            font-size: 0.82rem;
+            color: var(--accent);
+            font-weight: 600;
+            letter-spacing: 0.03em;
+        }
+        .detail-panel-close {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            transition: all var(--transition-fast);
+        }
+        .detail-panel-close:hover {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-primary);
+        }
+        .detail-section-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-tertiary);
+            margin-bottom: 6px;
+        }
+        .detail-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+        }
+        .detail-info-row .label {
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+        .detail-info-row .value {
+            color: var(--text-primary);
+            font-weight: 500;
+            text-align: right;
+        }
+        .detail-eligibility {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: var(--radius);
+            font-weight: 600;
+            font-size: 0.84rem;
+        }
+        .detail-eligibility.eligible {
+            background: var(--green-bg);
+            color: #4ade80;
+        }
+        .detail-eligibility .eligibility-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #4ade80;
+            flex-shrink: 0;
+        }
+        .detail-compensation {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--text-primary);
+        }
+
+        /* ── TIMELINE ────────────────────────── */
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            position: relative;
+            padding-left: 22px;
+        }
+        .timeline-step {
+            position: relative;
+            padding: 6px 0 18px 18px;
+            border-left: 2px solid var(--border);
+        }
+        .timeline-step:last-child {
+            border-left-color: transparent;
+            padding-bottom: 0;
+        }
+        .timeline-step::before {
+            content: '';
+            position: absolute;
+            left: -7px;
+            top: 10px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--bg-progress-dot);
+            border: 2px solid var(--border);
+            z-index: 1;
+        }
+        .timeline-step.completed::before {
+            background: #4ade80;
+            border-color: #4ade80;
+        }
+        .timeline-step.current::before {
+            background: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-light);
+        }
+        .timeline-step.completed {
+            border-left-color: #4ade80;
+        }
+        .timeline-step.current {
+            border-left-color: var(--accent);
+        }
+        .timeline-label {
+            font-weight: 600;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            letter-spacing: -0.005em;
+        }
+        .timeline-date {
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            font-weight: 500;
+        }
+
+        /* ── LETTER PREVIEW ──────────────────── */
+        .letter-preview-box {
+            background: var(--bg-letter);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            max-height: 160px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            letter-spacing: 0.01em;
+        }
+
+        /* ── BUTTONS ─────────────────────────── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border-radius: var(--radius);
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            font-size: 0.83rem;
+            letter-spacing: -0.005em;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all var(--transition-fast);
+            white-space: nowrap;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+            box-shadow: 0 0 0 4px var(--accent-light);
+        }
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: var(--border-light);
+        }
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: transparent;
+        }
+        .btn-ghost:hover {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.76rem;
+            border-radius: var(--radius-sm);
+        }
+        .btn-lg {
+            padding: 12px 22px;
+            font-size: 0.9rem;
+            border-radius: var(--radius);
+        }
+        .btn-full {
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* ── PROGRESS BAR ────────────────────── */
+        .progress-stepper {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 28px;
+            position: relative;
+        }
+        .progress-step {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            position: relative;
+        }
+        .progress-step::after {
+            content: '';
+            flex: 1;
+            height: 2px;
+            background: var(--border);
+            margin: 0 6px;
+            min-width: 20px;
+        }
+        .progress-step:last-child::after {
+            display: none;
+        }
+        .progress-step.completed::after {
+            background: var(--accent);
+        }
+        .progress-step.active::after {
+            background: var(--border);
+        }
+        .progress-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.78rem;
+            flex-shrink: 0;
+            border: 2px solid var(--border);
+            background: var(--bg-progress-dot);
+            color: var(--text-tertiary);
+            transition: all var(--transition-smooth);
+        }
+        .progress-step.completed .progress-dot {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .progress-step.active .progress-dot {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-light);
+            box-shadow: 0 0 0 6px var(--accent-light);
+        }
+        .progress-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+            letter-spacing: 0.01em;
+        }
+        .progress-step.completed .progress-label {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .progress-step.active .progress-label {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* ── FORM ────────────────────────────── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .form-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .form-field.full-width {
+            grid-column: 1 / -1;
+        }
+        .form-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            letter-spacing: 0.01em;
+        }
+        .form-input {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 10px 13px;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            letter-spacing: -0.005em;
+            transition: border-color var(--transition-fast);
+            outline: none;
+            width: 100%;
+        }
+        .form-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+        .form-input[type="date"] {
+            color-scheme: dark;
+        }
+        .form-actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        /* ── REFRESH BUTTON ──────────────────── */
+        .refresh-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            transition: all var(--transition-fast);
+            flex-shrink: 0;
+        }
+        .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+            border-color: var(--border-light);
+        }
+
+        /* ── MISC ────────────────────────────── */
+        .text-mono {
+            font-family: var(--font-mono);
+        }
+        .text-accent {
+            color: var(--accent);
+        }
+        .text-secondary {
+            color: var(--text-secondary);
+        }
+        .text-tertiary {
+            color: var(--text-tertiary);
+        }
+        .mb-12 {
+            margin-bottom: 12px;
+        }
+        .mb-16 {
+            margin-bottom: 16px;
+        }
+        .mb-20 {
+            margin-bottom: 20px;
+        }
+        .highlight-row {
+            background: var(--accent-light);
+        }
+        .highlight-row td {
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════════ SIDEBAR ═══════════════ -->
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon">✦</div>
+            ClaimsMVP
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#" class="active">
+                <span class="nav-dot"></span>
+                Dashboard
+            </a>
+            <a href="#">
+                <span class="nav-dot"></span>
+                Claims
+            </a>
+            <a href="#">
+                <span class="nav-dot"></span>
+                New Claim
+            </a>
+        </nav>
+        <div class="sidebar-footer">© 2026 ClaimsMVP</div>
+    </aside>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="main-content">
+
+        <!-- ── DASHBOARD SECTION ────────────────── -->
+        <section id="section-dashboard">
+            <div class="section-header">
+                <div>
+                    <h1 class="section-title">Dashboard</h1>
+                    <p class="section-subtitle">Overview of all claims activity</p>
+                </div>
+                <button class="refresh-btn" title="Refresh data">⟳</button>
+            </div>
+
+            <!-- Stat Cards -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <span class="stat-label">Total Claims</span>
+                    <span class="stat-value">1,247</span>
+                    <span class="stat-sub">+12 this week</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Eligible</span>
+                    <span class="stat-value accent">892</span>
+                    <span class="stat-sub">71.5% of total</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Avg Compensation</span>
+                    <span class="stat-value">€438</span>
+                    <span class="stat-sub">Across all eligible claims</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Submitted</span>
+                    <span class="stat-value">356</span>
+                    <span class="stat-sub">28.5% submission rate</span>
+                </div>
+            </div>
+
+            <!-- Recent Claims Table -->
+            <div class="section-block">
+                <div style="padding:16px 20px; border-bottom:1px solid var(--border);">
+                    <span style="font-weight:600;font-size:0.9rem;letter-spacing:-0.01em;">Recent Claims</span>
+                    <span style="font-size:0.75rem;color:var(--text-tertiary);margin-left:8px;">Last 3</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Passenger</th>
+                                <th>Flight</th>
+                                <th>Issue Type</th>
+                                <th>Status</th>
+                                <th>Compensation</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="cell-id">#CL-1247</td>
+                                <td>Emma Wilson</td>
+                                <td class="cell-mono">BA2492</td>
+                                <td>Delay</td>
+                                <td><span class="badge badge-green"><span class="badge-dot green"></span>APPROVED</span></td>
+                                <td class="cell-mono">€600</td>
+                                <td class="cell-secondary">Jan 22, 2026</td>
+                            </tr>
+                            <tr>
+                                <td class="cell-id">#CL-1246</td>
+                                <td>James Müller</td>
+                                <td class="cell-mono">LH1044</td>
+                                <td>Cancellation</td>
+                                <td><span class="badge badge-indigo"><span class="badge-dot indigo"></span>SUBMITTED</span></td>
+                                <td class="cell-mono">€400</td>
+                                <td class="cell-secondary">Jan 20, 2026</td>
+                            </tr>
+                            <tr>
+                                <td class="cell-id">#CL-1245</td>
+                                <td>Sofia Ricci</td>
+                                <td class="cell-mono">AF1782</td>
+                                <td>Baggage Lost</td>
+                                <td><span class="badge badge-yellow"><span class="badge-dot yellow"></span>DOCS_REQUESTED</span></td>
+                                <td class="cell-mono">€600</td>
+                                <td class="cell-secondary">Jan 18, 2026</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <hr class="section-divider">
+
+        <!-- ── CLAIMS LIST SECTION ────────────── -->
+        <section id="section-claims">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Claims</h2>
+                    <p class="section-subtitle">Manage and review all compensation claims</p>
+                </div>
+                <button class="refresh-btn" title="Refresh">⟳</button>
+            </div>
+
+            <div class="claims-layout">
+                <!-- Table Area -->
+                <div class="claims-table-area">
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" placeholder="Search by flight number or status…" value="" readonly>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Passenger</th>
+                                    <th>Flight</th>
+                                    <th>Issue Type</th>
+                                    <th>Status</th>
+                                    <th>Compensation</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="highlight-row">
+                                    <td class="cell-id">#CL-0042</td>
+                                    <td>Emma Wilson</td>
+                                    <td class="cell-mono">BA2492</td>
+                                    <td>Delay</td>
+                                    <td><span class="badge badge-blue"><span class="badge-dot blue"></span>READY_TO_SUBMIT</span></td>
+                                    <td class="cell-mono">€600</td>
+                                    <td class="cell-secondary">Jan 22, 2026</td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#CL-0041</td>
+                                    <td>Lucas Bernard</td>
+                                    <td class="cell-mono">AF1782</td>
+                                    <td>Cancellation</td>
+                                    <td><span class="badge badge-yellow"><span class="badge-dot yellow"></span>DOCS_REQUESTED</span></td>
+                                    <td class="cell-mono">€400</td>
+                                    <td class="cell-secondary">Jan 21, 2026</td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#CL-0040</td>
+                                    <td>Anna Kowalski</td>
+                                    <td class="cell-mono">LH1044</td>
+                                    <td>Missed Connection</td>
+                                    <td><span class="badge badge-indigo"><span class="badge-dot indigo"></span>SUBMITTED</span></td>
+                                    <td class="cell-mono">€600</td>
+                                    <td class="cell-secondary">Jan 20, 2026</td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#CL-0039</td>
+                                    <td>Marco Rossi</td>
+                                    <td class="cell-mono">IB3412</td>
+                                    <td>Baggage Delayed</td>
+                                    <td><span class="badge badge-green"><span class="badge-dot green"></span>APPROVED</span></td>
+                                    <td class="cell-mono">€600</td>
+                                    <td class="cell-secondary">Jan 18, 2026</td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#CL-0038</td>
+                                    <td>Hannah Vos</td>
+                                    <td class="cell-mono">KL1682</td>
+                                    <td>Delay</td>
+                                    <td><span class="badge badge-red"><span class="badge-dot red"></span>REJECTED</span></td>
+                                    <td class="cell-mono">€0</td>
+                                    <td class="cell-secondary">Jan 17, 2026</td>
+                                </tr>
+                                <tr>
+                                    <td class="cell-id">#CL-0037</td>
+                                    <td>Thomas Berg</td>
+                                    <td class="cell-mono">SK944</td>
+                                    <td>Baggage Damaged</td>
+                                    <td><span class="badge badge-emerald"><span class="badge-dot emerald"></span>PAID</span></td>
+                                    <td class="cell-mono">€600</td>
+                                    <td class="cell-secondary">Jan 15, 2026</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Detail Panel (shown open) -->
+                <aside class="detail-panel">
+                    <div class="detail-panel-header">
+                        <span class="detail-panel-id">CLAIM #CL-0042</span>
+                        <button class="detail-panel-close" title="Close">✕</button>
+                    </div>
+
+                    <!-- Passenger Info -->
+                    <div>
+                        <span class="detail-section-label">Passenger</span>
+                        <div class="detail-info-row">
+                            <span class="label">Name</span>
+                            <span class="value">Emma Wilson</span>
+                        </div>
+                        <div class="detail-info-row">
+                            <span class="label">Email</span>
+                            <span class="value text-secondary">emma.wilson@email.com</span>
+                        </div>
+                    </div>
+
+                    <!-- Flight Info -->
+                    <div>
+                        <span class="detail-section-label">Flight</span>
+                        <div class="detail-info-row">
+                            <span class="label">Flight Number</span>
+                            <span class="value cell-mono">BA2492</span>
+                        </div>
+                        <div class="detail-info-row">
+                            <span class="label">Route</span>
+                            <span class="value">LHR → JFK</span>
+                        </div>
+                        <div class="detail-info-row">
+                            <span class="label">Date</span>
+                            <span class="value">Jan 22, 2026</span>
+                        </div>
+                        <div class="detail-info-row">
+                            <span class="label">Airline</span>
+                            <span class="value">British Airways</span>
+                        </div>
+                        <div class="detail-info-row">
+                            <span class="label">Booking Ref</span>
+                            <span class="value cell-mono">BA-849201</span>
+                        </div>
+                        <div class="detail-info-row">
+                            <span class="label">Distance</span>
+                            <span class="value">5,536 km</span>
+                        </div>
+                    </div>
+
+                    <!-- Issue -->
+                    <div>
+                        <span class="detail-section-label">Issue</span>
+                        <div class="detail-info-row">
+                            <span class="label">Type</span>
+                            <span class="value">Delay</span>
+                        </div>
+                        <div class="detail-info-row">
+                            <span class="label">Delay</span>
+                            <span class="value">245 minutes</span>
+                        </div>
+                    </div>
+
+                    <!-- Eligibility Block -->
+                    <div class="detail-eligibility eligible">
+                        <span class="eligibility-dot"></span>
+                        Eligible — Compensation Due
+                    </div>
+                    <div class="detail-compensation">€600</div>
+
+                    <!-- Status Timeline -->
+                    <div>
+                        <span class="detail-section-label">Status Timeline</span>
+                        <div class="timeline">
+                            <div class="timeline-step completed">
+                                <div class="timeline-label">Claim Created</div>
+                                <div class="timeline-date">Jan 22, 2026 — 14:30</div>
+                            </div>
+                            <div class="timeline-step completed">
+                                <div class="timeline-label">Documents Reviewed</div>
+                                <div class="timeline-date">Jan 23, 2026 — 09:15</div>
+                            </div>
+                            <div class="timeline-step current">
+                                <div class="timeline-label">Ready to Submit</div>
+                                <div class="timeline-date">Jan 24, 2026 — 11:00</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Letter Preview -->
+                    <div>
+                        <span class="detail-section-label">Claim Letter Preview</span>
+                        <div class="letter-preview-box">Dear British Airways,
+
+                            I am writing to claim compensation under EU
+                            Regulation 261/2004 for flight BA2492 from
+                            London Heathrow (LHR) to New York (JFK) on
+                            January 22, 2026.
+
+                            The flight was delayed by 245 minutes upon
+                            arrival. The route distance of 5,536 km falls
+                            within the applicable range for €600
+                            compensation under Article 7(1)(c).
+
+                            Booking Reference: BA-849201
+                            Passenger: Emma Wilson
+
+                            I kindly request payment of the compensation
+                            within the statutory timeframe.
+
+                            Yours sincerely,
+                            Emma Wilson</div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button class="btn btn-primary btn-full btn-lg">
+                        Submit to Airline →
+                    </button>
+                </aside>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <hr class="section-divider">
+
+        <!-- ── NEW CLAIM SECTION ───────────────── -->
+        <section id="section-new-claim">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">New Claim</h2>
+                    <p class="section-subtitle">Create a new compensation claim — Step 2 of 5</p>
+                </div>
+            </div>
+
+            <!-- Progress Stepper (Step 2 active) -->
+            <div class="progress-stepper">
+                <div class="progress-step completed">
+                    <div class="progress-dot">1</div>
+                    <span class="progress-label">Passenger</span>
+                </div>
+                <div class="progress-step active">
+                    <div class="progress-dot">2</div>
+                    <span class="progress-label">Flight</span>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-dot">3</div>
+                    <span class="progress-label">Issue</span>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-dot">4</div>
+                    <span class="progress-label">EU Context</span>
+                </div>
+                <div class="progress-step">
+                    <div class="progress-dot">5</div>
+                    <span class="progress-label">Documents</span>
+                </div>
+            </div>
+
+            <!-- Form: Flight Step -->
+            <div class="section-block" style="padding:24px 28px;">
+                <span class="detail-section-label mb-16" style="display:block;">Flight Information</span>
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label class="form-label">Flight Number</label>
+                        <input class="form-input" type="text" value="BA2492" placeholder="e.g. BA2492" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Flight Date</label>
+                        <input class="form-input" type="date" value="2026-01-22" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Route From</label>
+                        <input class="form-input" type="text" value="London (LHR)" placeholder="Departure airport" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Route To</label>
+                        <input class="form-input" type="text" value="New York (JFK)" placeholder="Arrival airport" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Airline</label>
+                        <input class="form-input" type="text" value="British Airways" placeholder="Airline name" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Booking Reference</label>
+                        <input class="form-input" type="text" value="BA-849201" placeholder="PNR / Booking ref" readonly>
+                    </div>
+                    <div class="form-field full-width">
+                        <label class="form-label">Distance (km)</label>
+                        <input class="form-input" type="number" value="5536" placeholder="Flight distance in kilometers" readonly>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary">← Back</button>
+                    <button class="btn btn-primary">Next →</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</body>
+</html>

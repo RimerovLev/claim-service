@@ -11,6 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import com.claims.mvp.security.JwtService;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -29,7 +31,11 @@ class UserControllerTest {
     @MockitoBean
     private UserService userService;
 
+    @MockitoBean
+    private JwtService jwtService;
+
     @Test
+    @WithMockUser
     void createUser_validRequest_returns201() throws Exception {
         UserResponse response = new UserResponse();
         response.setId(1L);
@@ -54,6 +60,7 @@ class UserControllerTest {
     }
 
     @Test
+    @WithMockUser
     void createUser_invalidEmail_returns400WithMessage() throws Exception {
         mockMvc.perform(post("/api/users")
                         .contentType(MediaType.APPLICATION_JSON)

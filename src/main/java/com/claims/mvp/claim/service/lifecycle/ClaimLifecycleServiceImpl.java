@@ -28,6 +28,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -93,8 +96,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         // Then, in one step, recalculate derived fields (eligible/compensation/status).
         Claim claim = new Claim();
 
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + request.getUserId()));
+        User user = resolveClaimOwner(request.getUserId());
         claim.setUser(user);
         claim.setStatus(ClaimStatus.NEW);
 
@@ -119,6 +121,24 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         return claimMapper.toResponse(claim);
     }
 
+    private User resolveClaimOwner(Long userId) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isPrivileged = auth != null && auth.isAuthenticated() && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (isPrivileged && userId != null) {
+            return userRepository.findById(userId)
+                    .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+        }
+        String email = auth != null && auth.isAuthenticated()
+                && auth.getPrincipal() instanceof String ? (String) auth.getPrincipal() : null;
+        if (email != null) {
+            return userRepository.findByEmail(email)
+                    .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + email));
+        }
+        throw new AccessDeniedException("Access denied: not authenticated");
+    }
+
     @Override
     @Transactional
     public ClaimResponse updateClaimDetails(Long id, UpdateClaimDetailsRequest request) {
@@ -126,6 +146,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         // if a block is missing (null) we keep the existing data unchanged.
         Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        assertOwnerOrPrivileged(claim);
 
         workflowService.assertEditable(claim.getStatus());
 
@@ -176,6 +197,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     }
 
     @Override
+    @Transactional
     public ClaimResponse transition(Long id, StatusChangeRequest request) {
         ClaimStatus targetStatus = request.getStatus();
         if (targetStatus == null) {
@@ -183,6 +205,8 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         }
         Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        assertOwnerOrPrivileged(claim);
+        assertTransitionPemited(claim.getStatus(), targetStatus);
         ClaimStatus fromStatus = claim.getStatus();
 
         workflowService.assertTransitionAllowed(claim.getStatus(), targetStatus);
@@ -203,14 +227,29 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
         return claimMapper.toResponse(claim);
     }
 
+    private void assertTransitionPemited(ClaimStatus status, ClaimStatus targetStatus) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Access denied: not authenticated");
+        }
+        boolean isPrivileged = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (isPrivileged) return;
+        if (status == ClaimStatus.NEW && targetStatus == ClaimStatus.DOCS_REQUESTED) return;
+        if (status == ClaimStatus.READY_TO_SUBMIT && targetStatus == ClaimStatus.SUBMITTED) return;
+        throw new AccessDeniedException("Access denied: transition not allowed");
+    }
+
 
     @Override
     @Transactional(readOnly = true)
     public ClaimResponse getClaimById(Long id) {
         // Fetch a single claim by id.
-        return claimRepository.findWithDetailsById(id)
-                .map(claimMapper::toResponse)
+        Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        assertOwnerOrPrivileged(claim);
+        return claimMapper.toResponse(claim);
     }
 
     @Override
@@ -223,10 +262,9 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     @Override
     @Transactional(readOnly = true)
     public List<EventsResponse> getClaimEvents(Long id) {
-        // Claim events. First validate claim exists to return 404 instead of an empty list.
-        if (!claimRepository.existsById(id)) {
-            throw new EntityNotFoundException("Claim not found with id: " + id);
-        }
+        Claim claim = claimRepository.findWithDetailsById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        assertOwnerOrPrivileged(claim);
         return eventsRepository.findByClaimIdOrderByCreatedAtDesc(id).stream()
                 .map(claimMapper::toResponse)
                 .collect(Collectors.toList());
@@ -237,6 +275,7 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
     public LetterResponse getClaimLetter(Long id) {
         Claim claim = claimRepository.findWithDetailsById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Claim not found with id: " + id));
+        assertOwnerOrPrivileged(claim);
         return claimLetterService.generateLetter(claim);
     }
 
@@ -269,5 +308,29 @@ public class ClaimLifecycleServiceImpl implements ClaimService {
                 "to", to.name(),
                 "note", note == null ? "" : note
         ));
+    }
+    /**
+     * Throws AccessDeniedException if the current user is neither the owner
+     * of this claim nor an ADMIN. Call this at the top of every operation
+     * that takes a claim id in the path.
+     *
+     * SecurityContextHolder is safe to read here because Spring sets it
+     * before the service method is invoked and clears it after the response.
+     */
+    private void assertOwnerOrPrivileged(Claim claim) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated()) {
+            throw new AccessDeniedException("Access denied: not authenticated");
+        };
+
+        boolean isPrivileged = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (isPrivileged) return;
+
+        String currentEmail = auth.getName();
+        if (!claim.getUser().getEmail().equals(currentEmail)) {
+            throw new AccessDeniedException("Access denied: claim belongs to another user");
+        }
     }
 }

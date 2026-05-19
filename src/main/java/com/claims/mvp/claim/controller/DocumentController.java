@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -23,6 +24,7 @@ import java.util.List;
 public class DocumentController {
     private final DocumentStorageService documentStorageService;
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/upload")
     public DocumentResponse uploadDocument(
             @RequestParam Long claimId,
@@ -46,6 +48,7 @@ public class DocumentController {
         return documentStorageService.uploadDocument(request);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/claim/{claimId}")
     public List<DocumentResponse> getDocumentsByClaimId(@PathVariable Long claimId) throws IOException {
         log.info("Getting documents for claim: {}", claimId);
@@ -53,6 +56,7 @@ public class DocumentController {
         return documentStorageService.getDocumentsByClaimId(claimId);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/download/{documentId}")
     public ResponseEntity<Resource> downloadDocument(@PathVariable String documentId) throws IOException {
         DocumentResponse response = documentStorageService.downloadDocument(documentId);
@@ -68,6 +72,7 @@ public class DocumentController {
                 .body(response.getResource());
     }
 
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @DeleteMapping("/delete/{documentId}")
     public void deleteDocument(@PathVariable String documentId) throws IOException {
         documentStorageService.deleteDocument(documentId);

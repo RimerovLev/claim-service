@@ -2,13 +2,17 @@ package com.claims.mvp.user.service;
 
 import com.claims.mvp.exception.DuplicateUserException;
 import com.claims.mvp.user.dao.UserRepository;
+import com.claims.mvp.user.dto.request.ChangeRoleRequest;
 import com.claims.mvp.user.dto.request.CreateUserRequest;
 import com.claims.mvp.user.dto.response.UserResponse;
 import com.claims.mvp.user.mapper.UserMapper;
 import com.claims.mvp.user.model.User;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * UserService.
@@ -39,5 +43,18 @@ public class UserServiceImpl implements UserService{
         } catch (DataIntegrityViolationException e) {
             throw new DuplicateUserException("User with email " + request.getEmail() + " already exists");
         }
+    }
+
+    @Override
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAll().stream().map(userMapper::toResponse).toList();
+    }
+
+    @Override
+    public UserResponse changeRole(Long id, ChangeRoleRequest request) {
+        User user = userRepository.findById(id).orElseThrow(()
+                -> new EntityNotFoundException("User not found with id " + id));
+        user.setRole(request.role());
+        return userMapper.toResponse(userRepository.save(user));
     }
 }

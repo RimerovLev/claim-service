@@ -34,5 +34,10 @@ public class User {
     private OffsetDateTime createdAt;
     @OneToMany(mappedBy = "user")
     private List<Claim> claims;
+    @Column(name = "password_hash")
+    private String passwordHash;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role = Role.USER;
 
 }

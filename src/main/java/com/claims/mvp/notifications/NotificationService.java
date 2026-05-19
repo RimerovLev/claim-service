@@ -6,4 +6,8 @@ public interface NotificationService {
     void sendClaimCreated(Claim claim);
 
     void sendClaimSubmitted(Claim claim);
+
+    void sendClaimLetterToAirline(Claim claim);
+
+    void sendClaimFollowUp(Claim claim);
 }

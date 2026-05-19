@@ -34,7 +34,11 @@ import com.claims.mvp.eligibility.strategy.*;
 import com.claims.mvp.events.dao.EventsRepository;
 import com.claims.mvp.notifications.events.ClaimCreatedEvent;
 import com.claims.mvp.notifications.events.ClaimStatusTransitionedEvent;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import tools.jackson.databind.ObjectMapper;
 import com.claims.mvp.events.model.ClaimEvents;
 import com.claims.mvp.user.dao.UserRepository;
@@ -87,6 +91,15 @@ class ClaimServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        // Authenticate as ADMIN so assertOwnerOrAdmin and resolveClaimOwner
+        // bypass ownership checks in unit tests. ADMIN can pass userId in the
+        // request body, which matches the existing test fixtures using user(1L).
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        "test@example.com", null,
+                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+                )
+        );
         EligibilityService eligibilityService = new EligibilityServiceImpl(
                 List.of(
                         new DelayEligibilityStrategy(),
@@ -128,6 +141,10 @@ class ClaimServiceImplTest {
         );
         lenient().when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(eventsRepository.save(any(ClaimEvents.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -229,7 +246,7 @@ class ClaimServiceImplTest {
         Claim claim = existingClaim(ClaimStatus.NEW, List.of());
         when(claimRepository.findWithDetailsById(7L)).thenReturn(Optional.of(claim));
 
-        assertThatThrownBy(() -> service.transition(7L, new StatusChangeRequest(ClaimStatus.PAID, "skip")) )
+        assertThatThrownBy(() -> service.transition(7L, new StatusChangeRequest(ClaimStatus.PAID, "skip")))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Transition from NEW to PAID");
 
@@ -239,7 +256,6 @@ class ClaimServiceImplTest {
 
     @Test
     void getClaimEvents_claimMissing_throws404StyleException() {
-        when(claimRepository.existsById(99L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.getClaimEvents(99L))
                 .isInstanceOf(EntityNotFoundException.class)

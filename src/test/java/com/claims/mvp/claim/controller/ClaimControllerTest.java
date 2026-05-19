@@ -13,7 +13,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import com.claims.mvp.claim.dto.request.StatusChangeRequest;
-import com.claims.mvp.claim.enums.ClaimStatus;
+import com.claims.mvp.security.JwtService;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -35,7 +36,11 @@ class ClaimControllerTest {
     @MockitoBean
     private ClaimService claimService;
 
+    @MockitoBean
+    private JwtService jwtService;
+
     @Test
+    @WithMockUser
     void createClaim_validRequest_returns201() throws Exception {
         ClaimResponse response = new ClaimResponse();
         response.setId(10L);
@@ -78,7 +83,7 @@ class ClaimControllerTest {
         verify(claimService).createClaim(any(CreateClaimRequest.class));
     }
 
-    @Test
+    @Test @WithMockUser
     void createClaim_invalidRequest_returns400WithMessage() throws Exception {
         mockMvc.perform(post("/api/claims")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -87,7 +92,7 @@ class ClaimControllerTest {
                 .andExpect(jsonPath("$.message").exists());
     }
 
-    @Test
+    @Test @WithMockUser
     void submitClaim_delegatesToService() throws Exception {
         ClaimResponse response = new ClaimResponse();
         response.setId(11L);
@@ -109,7 +114,7 @@ class ClaimControllerTest {
         verify(claimService).transition(eq(11L), any(StatusChangeRequest.class));
     }
 
-    @Test
+    @Test @WithMockUser
     void closeClaim_delegatesToService() throws Exception {
         ClaimResponse response = new ClaimResponse();
         response.setId(12L);
@@ -131,7 +136,7 @@ class ClaimControllerTest {
         verify(claimService).transition(eq(12L), any(StatusChangeRequest.class));
     }
 
-    @Test
+    @Test @WithMockUser
     void updateClaimDetails_validationFailure_returns400WithMessage() throws Exception {
         mockMvc.perform(patch("/api/claims/5/update")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -146,7 +151,7 @@ class ClaimControllerTest {
                 .andExpect(jsonPath("$.message").exists());
     }
 
-    @Test
+    @Test @WithMockUser
     void getClaimById_notFound_fromService_returns404() throws Exception {
         when(claimService.getClaimById(99L)).thenThrow(new jakarta.persistence.EntityNotFoundException("Claim not found"));
 
